@@ -7,7 +7,7 @@
 
 uv run organizer.py 4            -> вариант на 4 устройства: lil-solid-organizer-4-devices.3mf
 uv run organizer.py 3 out.3mf    -> вариант на 3 устройства в указанный файл
-uv run organizer.py test         -> пробник на 2 ложа: lil-solid-organizer-test.3mf
+uv run organizer.py test         -> пробник посадки на 2 ложа и пачку: lil-solid-organizer-fit-test.3mf
 uv run organizer.py 4 --filled   -> сцена для картинки: органайзер с устройствами, пачками,
                                     чистилкой и кабелем, у каждой детали свой цвет.
                                     Не для печати! Файл: lil-solid-organizer-4-devices-filled.3mf
@@ -292,7 +292,7 @@ if __name__ == "__main__":
     arg = args[0] if args else str(N_DEV)
     test = arg == "test"
     n = 2 if test else int(arg)
-    name = "lil-solid-organizer-test" if test else f"lil-solid-organizer-{n}-devices"
+    name = "lil-solid-organizer-fit-test" if test else f"lil-solid-organizer-{n}-devices"
     if filled:
         name += "-filled"
     fname = args[1] if len(args) > 1 else f"{name}.3mf"

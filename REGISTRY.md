@@ -7,3 +7,4 @@
 | [Органайзер lil SOLID на 2 устройства](models/lil-solid-organizer/lil-solid-organizer-2-devices/README.md) | 2 устройства lil SOLID 3.0 с зарядкой на месте, 4 пачки HEETS, чистилка | v1 | 176 × 139 | PLA, PETG | черновик | 2026-10-30 |
 | [Органайзер lil SOLID на 3 устройства](models/lil-solid-organizer/lil-solid-organizer-3-devices/README.md) | 3 устройства lil SOLID 3.0 с зарядкой на месте, 4 пачки HEETS, чистилка | v1 | 176 × 167 | PLA, PETG | черновик | 2026-10-30 |
 | [Органайзер lil SOLID на 4 устройства](models/lil-solid-organizer/lil-solid-organizer-4-devices/README.md) | 4 устройства lil SOLID 3.0 с зарядкой на месте, 4 пачки HEETS, чистилка | v1 | 176 × 201 | PLA, PETG | на проверке | 2026-10-30 |
+| [Пробник посадки для органайзера lil SOLID](models/lil-solid-organizer/lil-solid-organizer-fit-test/README.md) | Кусок органайзера на 2 ложа и пачку — проверить посадку перед печатью бокса | v1 | 149 × 103 | та же, что для органайзера | черновик | 2026-10-30 |
