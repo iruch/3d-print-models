@@ -1,8 +1,14 @@
-"""Органайзер v4: 4 × lil SOLID 3.0 (стоят на ребре, индикатор вверх) + 2 пачки HEETS + чистилка.
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["numpy", "manifold3d"]
+# ///
+"""Органайзер: N × lil SOLID 3.0 (стоят на ребре, индикатор вверх) + 4 пачки HEETS + чистилка.
 Все размеры в мм. X — слева направо, Y — от себя (перед = 0), Z — вверх.
 
-python3 organizer.py          -> полная деталь  lil_solid_organizer_v4.3mf
-python3 organizer.py test     -> пробник на 2 ложа lil_solid_test_v4.3mf
+uv run organizer.py 4            -> вариант на 4 устройства: lil-solid-organizer-4-devices.3mf
+uv run organizer.py 3 out.3mf    -> вариант на 3 устройства в указанный файл
+uv run organizer.py test         -> пробник на 2 ложа: lil-solid-organizer-test.3mf
+Без uv: pip install numpy manifold3d, дальше python вместо uv run.
 """
 import sys
 import zipfile
@@ -13,7 +19,7 @@ from manifold3d import Manifold, CrossSection, JoinType
 CLR = 0.4                      # зазор на сторону по ширине (проверено пробником)
 CLR_L = 1.0                    # зазор на сторону по длине (было 0.4 — туго)
 FLOOR = 2.0                    # толщина дна
-N_DEV = 4                      # сколько устройств
+N_DEV = 4                      # сколько устройств, если не задано в командной строке
 
 DEV_L, DEV_W, DEV_T = 105.8, 30.8, 21.4          # lil SOLID: длина, ширина, толщина
 # устройство на ребре: в плане занимает DEV_L × DEV_T, в высоту DEV_W
@@ -79,13 +85,18 @@ def u_scoop_y(xc, y0, y1, r, z_bottom):
             + box(xc - r, y0, zc, xc + r, y1, H + 1))
 
 
-def build(test=False):
-    n = 2 if test else N_DEV
+def build(n=N_DEV, test=False):
+    """n — сколько устройств; test — пробник на 2 ложа без задних пачек и чистилки."""
+    if test:
+        n = 2
     # передний ряд пачек HEETS
     y_f0 = WALL
     y_f1 = y_f0 + heets_w
+    # на 2 устройства ряд лож короче чистилки — раздвигаем ряды пачек, чтобы она влезла
+    rows_len = n * slot_w + (n - 1) * PART
+    extra = 0.0 if test else max(0.0, clean_l + 2 * WALL - (rows_len + 2 * PART))
     rows_y0 = []
-    y = y_f1 + PART
+    y = y_f1 + PART + extra / 2
     for _ in range(n):
         rows_y0.append(y)
         y += slot_w + PART
@@ -96,7 +107,7 @@ def build(test=False):
         Dt = y_rows_end + WALL
         body = rrect(0, 0, Wt, Dt, OUTER_R, 0, H)
     else:
-        y_h0 = y_rows_end + PART
+        y_h0 = y_rows_end + PART + extra / 2
         y_h1 = y_h0 + heets_w
         Dt = y_h1 + WALL
         Wt = W
@@ -115,7 +126,7 @@ def build(test=False):
 
     # выемка для пальцев поперёк всех рядов у правых концов устройств
     groove_x = x_dev1 - 20.0
-    groove_end = (Dt + 1) if test else (y_rows_end + PART - 3.0)
+    groove_end = (Dt + 1) if test else (y_rows_end + PART + extra / 2 - 3.0)
     cuts.append(u_scoop_y(groove_x, y_f1 + 3.0, groove_end, 15.0, FLOOR + 6.0))
 
     heets_total = 2 * heets_l + 3 * WALL
@@ -178,10 +189,12 @@ def write_3mf(path, model, name):
 
 
 if __name__ == "__main__":
-    test = len(sys.argv) > 1 and sys.argv[1] == "test"
-    model, (w, d, h) = build(test)
-    fname = "lil_solid_test_v4.3mf" if test else "lil_solid_organizer_v4.3mf"
-    verts, tris = write_3mf(fname, model, "lil SOLID test v4" if test else "lil SOLID organizer v4")
-    np.savez("mesh_test.npz" if test else "mesh.npz", verts=verts, tris=tris)
+    arg = sys.argv[1] if len(sys.argv) > 1 else str(N_DEV)
+    test = arg == "test"
+    n = 2 if test else int(arg)
+    name = "lil-solid-organizer-test" if test else f"lil-solid-organizer-{n}-devices"
+    fname = sys.argv[2] if len(sys.argv) > 2 else f"{name}.3mf"
+    model, (w, d, h) = build(n, test)
+    write_3mf(fname, model, name)
     print(f"{fname}: {w:.1f} × {d:.1f} × {h:.1f} мм, объём {model.volume()/1000:.1f} см³, "
           f"genus {model.genus()}, статус {model.status()}")
