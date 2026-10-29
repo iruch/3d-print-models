@@ -1,0 +1,9 @@
+{
+  "name": "crealityk1c-tools",
+  "private": true,
+  "type": "module",
+  "description": "Служебные скрипты проекта: рендер видов модели из 3mf",
+  "dependencies": {
+    "@resvg/resvg-js": "2.6.2"
+  }
+}

@@ -20,9 +20,13 @@
 
 ## Виды (vN)
 
-| Спереди | Справа | Сверху |
-|---|---|---|
-| ![Спереди](vN/img/front.png) | ![Справа](vN/img/right.png) | ![Сверху](vN/img/top.png) |
+![Вид сверху](vN/img/top.png)
+
+![Вид спереди](vN/img/front.png)
+
+![Вид слева](vN/img/left.png)
+
+![Вид справа](vN/img/right.png)
 
 ## Печать
 
