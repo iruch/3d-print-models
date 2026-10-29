@@ -1,8 +1,10 @@
 // Картинки модели из 3mf: общий вид и четыре проекции (спереди, слева, справа, сверху) с габаритами.
 //
-//   node tools/render-3mf.mjs <модель.3mf> <папка_для_картинок> [--name "Название"] [--color "#RRGGBB"]
+//   node tools/render-3mf.mjs <модель.3mf> <папка_для_картинок> [--name "Название"] [--color "#RRGGBB"] [--filled]
 //
 // Создаёт iso.png, front.png, left.png, right.png, top.png и preview.png (если в 3mf есть миниатюра).
+// С --filled на вход идёт сцена «модель с содержимым», а на выходе один общий вид filled.png.
+// Цвета деталей берутся из 3mf (basematerials, displaycolor), детали без цвета красятся в --color.
 // Перед первым запуском: `npm install` в папке tools/.
 // Оси как в слайсере: X — слева направо, Y — от себя (перед = минимальный Y), Z — вверх.
 
@@ -93,18 +95,33 @@ function mul(a, b) {
   return r;
 }
 
+function parseHexColor(s) {
+  const m = /^#?([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(s ?? '');
+  if (!m) return null;
+  const v = parseInt(m[1], 16);
+  return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+}
+
 function parseModel(xml) {
+  const materials = new Map();
+  for (const m of xml.matchAll(/<basematerials\b([^>]*)>([\s\S]*?)<\/basematerials>/g)) {
+    materials.set(attrs(m[1]).id, [...m[2].matchAll(/<base\b([^>]*)>/g)].map((b) => parseHexColor(attrs(b[1]).displaycolor)));
+  }
   const objects = new Map();
   for (const m of xml.matchAll(/<object\b([^>]*)>([\s\S]*?)<\/object>/g)) {
     const a = attrs(m[1]);
     const body = m[2];
-    const obj = { mesh: null, components: [] };
+    const obj = { mesh: null, components: [], pid: a.pid ?? null, pindex: +(a.pindex ?? 0) };
     const mesh = /<mesh\b[^>]*>([\s\S]*?)<\/mesh>/.exec(body);
     if (mesh) {
-      const v = [], t = [];
+      const v = [], t = [], tm = [];
       for (const x of mesh[1].matchAll(/<vertex\b([^>]*)>/g)) { const q = attrs(x[1]); v.push(+q.x, +q.y, +q.z); }
-      for (const x of mesh[1].matchAll(/<triangle\b([^>]*)>/g)) { const q = attrs(x[1]); t.push(+q.v1, +q.v2, +q.v3); }
-      obj.mesh = { v, t };
+      for (const x of mesh[1].matchAll(/<triangle\b([^>]*)>/g)) {
+        const q = attrs(x[1]);
+        t.push(+q.v1, +q.v2, +q.v3);
+        tm.push(q.p1 !== undefined ? { pid: q.pid ?? obj.pid, p1: +q.p1 } : null);
+      }
+      obj.mesh = { v, t, tm };
     }
     for (const c of body.matchAll(/<component\b([^>]*)>/g)) {
       const q = attrs(c[1]);
@@ -120,10 +137,11 @@ function parseModel(xml) {
       items.push({ id: q.objectid, path: q['p:path'] || null, transform: parseTransform(q.transform) });
     }
   }
-  return { objects, items };
+  return { objects, items, materials };
 }
 
 // Все треугольники сборки в мировых координатах: Float64Array, 9 чисел на треугольник.
+// colors — цвет треугольника (0xRRGGBB) или -1, parts — номер детали, которой он принадлежит.
 function loadTriangles(zip) {
   const rels = zip.get('_rels/.rels')?.toString('utf8') ?? '';
   const root = (/Target="([^"]+\.model)"/.exec(rels)?.[1] ?? '/3D/3dmodel.model').replace(/^\//, '');
@@ -136,22 +154,33 @@ function loadTriangles(zip) {
     }
     return cache.get(p);
   };
-  const out = [];
+  const out = [], colors = [], parts = [];
+  let part = 0;
+  const pack = (c) => (c ? (c[0] << 16) | (c[1] << 8) | c[2] : -1);
   const visit = (file, id, m) => {
-    const obj = model(file).objects.get(id);
+    const { objects, materials } = model(file);
+    const obj = objects.get(id);
     if (!obj) throw new Error(`объект ${id} не найден в ${file}`);
     if (obj.mesh) {
-      const { v, t } = obj.mesh;
-      for (const idx of t) {
-        const x = v[idx * 3], y = v[idx * 3 + 1], z = v[idx * 3 + 2];
-        out.push(x * m[0] + y * m[3] + z * m[6] + m[9], x * m[1] + y * m[4] + z * m[7] + m[10], x * m[2] + y * m[5] + z * m[8] + m[11]);
+      const { v, t, tm } = obj.mesh;
+      const objColor = obj.pid !== null ? materials.get(obj.pid)?.[obj.pindex] : null;
+      for (let k = 0; k < t.length / 3; k++) {
+        for (let j = 0; j < 3; j++) {
+          const idx = t[k * 3 + j];
+          const x = v[idx * 3], y = v[idx * 3 + 1], z = v[idx * 3 + 2];
+          out.push(x * m[0] + y * m[3] + z * m[6] + m[9], x * m[1] + y * m[4] + z * m[7] + m[10], x * m[2] + y * m[5] + z * m[8] + m[11]);
+        }
+        const own = tm[k] ? materials.get(tm[k].pid)?.[tm[k].p1] : null;
+        colors.push(pack(own ?? objColor));
+        parts.push(part);
       }
+      part++;
     }
     for (const c of obj.components) visit(c.path ? c.path.replace(/^\//, '') : file, c.id, mul(c.transform, m));
   };
   const { items } = model(root);
   for (const it of items) visit(it.path ? it.path.replace(/^\//, '') : root, it.id, it.transform);
-  return { tris: Float64Array.from(out), items: items.length };
+  return { tris: Float64Array.from(out), colors: Int32Array.from(colors), parts: Int32Array.from(parts), items: items.length };
 }
 
 function thumbnail(zip) {
@@ -200,12 +229,16 @@ const VIEWS = {
   right: { cam: camera([-1, 0, 0], [0, 0, 1]), title: 'Вид справа', depthShade: 0.45 },
   top: { cam: camera([0, 0, -1], [0, 1, 0]), title: 'Вид сверху', depthShade: 0.45 },
   iso: { cam: camera([1, 1.3, -1], [0, 0, 1]), title: 'Общий вид', depthShade: 0.18 },
+  // с содержимым смотрим чуть сверху, чтобы высокие предметы меньше заслоняли нижние
+  filled: { cam: camera([1, 1.3, -1.6], [0, 0, 1]), title: 'С содержимым', depthShade: 0.18 },
 };
 
 // ---------- растеризация ----------
 
 // scale — px на мм итоговой картинки, padF — поле вокруг модели, px.
-function render(tris, view, scale, color, padF = 3) {
+// color — цвет треугольников, у которых в 3mf нет своего цвета.
+function render(scene, view, scale, color, padF = 3) {
+  const { tris, colors, parts } = scene;
   const { f, r, u } = view.cam;
   const n = tris.length / 9;
   const P = new Float64Array(tris.length);
@@ -222,10 +255,16 @@ function render(tris, view, scale, color, padF = 3) {
   const Hf = Math.ceil((maxY - minY) * scale) + 2 * padF;
   const W = Wf * SS, H = Hf * SS, s = scale * SS, pad = padF * SS;
 
-  // нормали и освещённость граней; свет — слева сверху из-за плеча наблюдателя
-  const light = norm([-0.45 * r[0] + 0.65 * u[0] - 0.6 * f[0], -0.45 * r[1] + 0.65 * u[1] - 0.6 * f[1], -0.45 * r[2] + 0.65 * u[2] - 0.6 * f[2]]);
+  // нормали и освещённость граней; свет — сверху из-за плеча наблюдателя, чуть слева
+  const light = norm([-0.16 * r[0] + 0.52 * u[0] - 0.83 * f[0], -0.16 * r[1] + 0.52 * u[1] - 0.83 * f[1], -0.16 * r[2] + 0.52 * u[2] - 0.83 * f[2]]);
   const N = new Float64Array(n * 3);
   const shade = new Float64Array(n);
+  const C = new Float64Array(n * 3);
+  for (let t = 0; t < n; t++) {
+    const c = colors[t];
+    if (c < 0) { C[t * 3] = color[0]; C[t * 3 + 1] = color[1]; C[t * 3 + 2] = color[2]; }
+    else { C[t * 3] = (c >> 16) & 255; C[t * 3 + 1] = (c >> 8) & 255; C[t * 3 + 2] = c & 255; }
+  }
   for (let t = 0; t < n; t++) {
     const o = t * 9;
     let nn = norm(cross(
@@ -233,7 +272,7 @@ function render(tris, view, scale, color, padF = 3) {
       [tris[o + 6] - tris[o], tris[o + 7] - tris[o + 1], tris[o + 8] - tris[o + 2]]));
     if (dot(nn, f) > 0) nn = [-nn[0], -nn[1], -nn[2]];
     N[t * 3] = nn[0]; N[t * 3 + 1] = nn[1]; N[t * 3 + 2] = nn[2];
-    shade[t] = 0.3 + 0.7 * Math.max(0, dot(nn, light));
+    shade[t] = 0.4 + 0.6 * Math.max(0, dot(nn, light));
   }
 
   const zbuf = new Float32Array(W * H).fill(Infinity);
@@ -262,7 +301,7 @@ function render(tris, view, scale, color, padF = 3) {
     }
   }
 
-  // контуры: край силуэта, ступенька по глубине или излом поверхности
+  // контуры: край силуэта, ступенька по глубине, излом поверхности или граница двух деталей
   const edge = new Uint8Array(W * H);
   const depthJump = Math.max(1.5, 8 / s);
   const creaseCos = Math.cos((35 * Math.PI) / 180);
@@ -274,6 +313,7 @@ function render(tris, view, scale, color, padF = 3) {
         const b = tid[j];
         if (a === b) continue;
         let hit = a < 0 || b < 0 || Math.abs(zbuf[i] - zbuf[j]) > depthJump;
+        if (!hit) hit = parts[a] !== parts[b];
         if (!hit) hit = N[a * 3] * N[b * 3] + N[a * 3 + 1] * N[b * 3 + 1] + N[a * 3 + 2] * N[b * 3 + 2] < creaseCos;
         if (hit) { edge[i] = 1; edge[j] = 1; }
       }
@@ -294,8 +334,9 @@ function render(tris, view, scale, color, padF = 3) {
           if (edge[i]) c = edgeColor;
           else if (tid[i] < 0) c = BG;
           else {
-            const k = shade[tid[i]] * (1 - view.depthShade * ((zbuf[i] - minD) / range));
-            c = [color[0] * k, color[1] * k, color[2] * k];
+            const t = tid[i];
+            const k = shade[t] * (1 - view.depthShade * ((zbuf[i] - minD) / range));
+            c = [C[t * 3] * k, C[t * 3 + 1] * k, C[t * 3 + 2] * k];
           }
           acc[0] += c[0]; acc[1] += c[1]; acc[2] += c[2];
         }
@@ -387,13 +428,12 @@ ${arrow(vx, y0, 0, -1)}${arrow(vx, y1, 0, 1)}
 </svg>`;
 }
 
-function isoSvg(img, name, size) {
+function isoSvg(img, name, viewTitle, caption) {
   const ml = 24, mt = 48, mb = 48;
   const W = Math.max(ml * 2 + img.w, 420), H = mt + img.h + mb;
-  const caption = `Габариты: ${size.map((v) => v.toFixed(1)).join(' × ')} мм (ширина × глубина × высота)`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
 <rect width="100%" height="100%" fill="#fff"/>
-${titleText(name, VIEWS.iso.title)}
+${titleText(name, viewTitle)}
 ${image(img, ml, mt)}
 <text x="${W / 2}" y="${mt + img.h + 30}" text-anchor="middle" font-family="${FONT}" font-size="15" fill="${INK}">${esc(caption)}</text>
 </svg>`;
@@ -405,25 +445,38 @@ function svgToPng(svg) {
 
 // ---------- запуск ----------
 
+const FLAGS = new Set(['filled']);   // опции без значения
+
 function parseArgs(argv) {
   const pos = [], opt = {};
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i].startsWith('--')) opt[argv[i].slice(2)] = argv[++i];
-    else pos.push(argv[i]);
+    if (!argv[i].startsWith('--')) pos.push(argv[i]);
+    else if (FLAGS.has(argv[i].slice(2))) opt[argv[i].slice(2)] = true;
+    else opt[argv[i].slice(2)] = argv[++i];
   }
   return { pos, opt };
 }
 
 function parseColor(hex) {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex ?? '');
-  if (!m) return [185, 194, 204];
-  const v = parseInt(m[1], 16);
-  return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+  return parseHexColor(hex) ?? [185, 194, 204];
+}
+
+// общий вид: масштаб подбирается по проекции модели на экран камеры
+function renderIso(scene, color, view = VIEWS.iso) {
+  const { r, u } = view.cam;
+  const { tris } = scene;
+  let a = Infinity, b = -Infinity, c = Infinity, d = -Infinity;
+  for (let i = 0; i < tris.length; i += 3) {
+    const p = [tris[i], tris[i + 1], tris[i + 2]];
+    const x = dot(p, r), y = dot(p, u);
+    a = Math.min(a, x); b = Math.max(b, x); c = Math.min(c, y); d = Math.max(d, y);
+  }
+  return render(scene, view, Math.min(ISO_PX / (b - a), (ISO_PX * 0.8) / (d - c)), color);
 }
 
 const { pos, opt } = parseArgs(process.argv.slice(2));
 if (pos.length < 2) {
-  console.error('Использование: node tools/render-3mf.mjs <модель.3mf> <папка_для_картинок> [--name "Название"] [--color "#RRGGBB"]');
+  console.error('Использование: node tools/render-3mf.mjs <модель.3mf> <папка_для_картинок> [--name "Название"] [--color "#RRGGBB"] [--filled]');
   process.exit(1);
 }
 const [input, outDir] = pos;
@@ -431,43 +484,40 @@ const name = opt.name ?? '';
 const color = parseColor(opt.color);
 
 const zip = readZip(fs.readFileSync(input));
-const { tris, items } = loadTriangles(zip);
+const scene = loadTriangles(zip);
+const { tris, items } = scene;
 if (!tris.length) throw new Error('в 3mf нет треугольников');
 const box = bounds(tris);
 fs.mkdirSync(outDir, { recursive: true });
 
-const scale = ORTHO_PX / Math.max(...box.size);
-const views = [
-  ['front', box.size[0], box.size[2]],
-  ['left', box.size[1], box.size[2]],
-  ['right', box.size[1], box.size[2]],
-  ['top', box.size[0], box.size[1]],
-];
-for (const [key, h, v] of views) {
-  const img = render(tris, VIEWS[key], scale, color);
-  fs.writeFileSync(path.join(outDir, `${key}.png`), svgToPng(orthoSvg(img, name, VIEWS[key].title, h, v)));
-}
-
-// общий вид: подбираем масштаб по проекции модели на экран камеры
-const { r, u } = VIEWS.iso.cam;
-let isoW = 0, isoH = 0;
-{
-  let a = Infinity, b = -Infinity, c = Infinity, d = -Infinity;
-  for (let i = 0; i < tris.length; i += 3) {
-    const p = [tris[i], tris[i + 1], tris[i + 2]];
-    const x = dot(p, r), y = dot(p, u);
-    a = Math.min(a, x); b = Math.max(b, x); c = Math.min(c, y); d = Math.max(d, y);
+if (opt.filled) {
+  // сцена с содержимым: только общий вид, габариты не подписываем — в сцене не только сама модель
+  const img = renderIso(scene, color, VIEWS.filled);
+  const caption = 'Содержимое показано условно — печатается только сама модель';
+  fs.writeFileSync(path.join(outDir, 'filled.png'), svgToPng(isoSvg(img, name, VIEWS.filled.title, caption)));
+  console.log(`Деталей в сцене: ${new Set(scene.parts).size}, треугольников: ${tris.length / 9}`);
+  console.log(`Картинка: ${path.resolve(outDir, 'filled.png')}`);
+} else {
+  const scale = ORTHO_PX / Math.max(...box.size);
+  const views = [
+    ['front', box.size[0], box.size[2]],
+    ['left', box.size[1], box.size[2]],
+    ['right', box.size[1], box.size[2]],
+    ['top', box.size[0], box.size[1]],
+  ];
+  for (const [key, h, v] of views) {
+    const img = render(scene, VIEWS[key], scale, color);
+    fs.writeFileSync(path.join(outDir, `${key}.png`), svgToPng(orthoSvg(img, name, VIEWS[key].title, h, v)));
   }
-  isoW = b - a; isoH = d - c;
+  const caption = `Габариты: ${box.size.map((v) => v.toFixed(1)).join(' × ')} мм (ширина × глубина × высота)`;
+  fs.writeFileSync(path.join(outDir, 'iso.png'), svgToPng(isoSvg(renderIso(scene, color), name, VIEWS.iso.title, caption)));
+
+  const thumb = thumbnail(zip);
+  if (thumb) fs.writeFileSync(path.join(outDir, 'preview.png'), thumb);
+
+  console.log(`Объектов в сборке: ${items}, треугольников: ${tris.length / 9}`);
+  console.log(`Габариты: ${box.size.map((v) => v.toFixed(1)).join(' × ')} мм`);
+  console.log(`Объём тела: ${(volume(tris) / 1000).toFixed(1)} см³`);
+  console.log(`Миниатюра из 3mf: ${thumb ? 'есть → preview.png' : 'нет'}`);
+  console.log(`Картинки: ${path.resolve(outDir)}`);
 }
-const iso = render(tris, VIEWS.iso, Math.min(ISO_PX / isoW, (ISO_PX * 0.8) / isoH), color);
-fs.writeFileSync(path.join(outDir, 'iso.png'), svgToPng(isoSvg(iso, name, box.size)));
-
-const thumb = thumbnail(zip);
-if (thumb) fs.writeFileSync(path.join(outDir, 'preview.png'), thumb);
-
-console.log(`Объектов в сборке: ${items}, треугольников: ${tris.length / 9}`);
-console.log(`Габариты: ${box.size.map((v) => v.toFixed(1)).join(' × ')} мм`);
-console.log(`Объём тела: ${(volume(tris) / 1000).toFixed(1)} см³`);
-console.log(`Миниатюра из 3mf: ${thumb ? 'есть → preview.png' : 'нет'}`);
-console.log(`Картинки: ${path.resolve(outDir)}`);
