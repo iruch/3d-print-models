@@ -6,4 +6,4 @@
 |---|---|---|---|---|---|---|
 | [Органайзер lil SOLID на 2 устройства](models/lil-solid-organizer/lil-solid-organizer-2-devices/README.md) | 2 устройства lil SOLID 3.0 с зарядкой на месте, 4 пачки HEETS, чистилка | v1 | 165.6 × 128.6 × 33.0 | не указан | черновик | 2026-10-30 |
 | [Органайзер lil SOLID на 3 устройства](models/lil-solid-organizer/lil-solid-organizer-3-devices/README.md) | 3 устройства lil SOLID 3.0 с зарядкой на месте, 4 пачки HEETS, чистилка | v1 | 165.6 × 156.2 × 33.0 | не указан | черновик | 2026-10-30 |
-| [Органайзер lil SOLID на 4 устройства](models/lil-solid-organizer/lil-solid-organizer-4-devices/README.md) | 4 устройства lil SOLID 3.0 с зарядкой на месте, 4 пачки HEETS, чистилка | v1 | 165.6 × 190.4 × 33.0 | не указан | не указан | 2026-10-30 |
+| [Органайзер lil SOLID на 4 устройства](models/lil-solid-organizer/lil-solid-organizer-4-devices/README.md) | 4 устройства lil SOLID 3.0 с зарядкой на месте, 4 пачки HEETS, чистилка | v1 | 165.6 × 190.4 × 33.0 | чёрный; материал не указан | на проверке | 2026-10-30 |

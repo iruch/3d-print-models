@@ -8,6 +8,9 @@
 uv run organizer.py 4            -> вариант на 4 устройства: lil-solid-organizer-4-devices.3mf
 uv run organizer.py 3 out.3mf    -> вариант на 3 устройства в указанный файл
 uv run organizer.py test         -> пробник на 2 ложа: lil-solid-organizer-test.3mf
+uv run organizer.py 4 --filled   -> сцена для картинки: органайзер с устройствами, пачками,
+                                    чистилкой и кабелем, у каждой детали свой цвет.
+                                    Не для печати! Файл: lil-solid-organizer-4-devices-filled.3mf
 Без uv: pip install numpy manifold3d, дальше python вместо uv run.
 """
 import sys
@@ -53,6 +56,20 @@ x_cl0 = x_dev1 + 6.4
 x_cl1 = x_cl0 + clean_w
 W = max(x_cl1 + 4.0, 2 * heets_l + WALL + 2 * 3.5)   # пачки не должны съедать боковые стенки
 
+# ---------- содержимое: только для картинки «с содержимым», на печать не влияет ----------
+DEV_R = 6.0                                      # скругление продольных рёбер устройства (на глаз)
+DEV_CAP_L = 16.0                                 # торцевая крышка устройства справа
+BUTTON_AT = 66.0                                 # кнопка-индикатор: расстояние от левого торца
+HEETS_H = 52.0                                   # высота пачки (примерно)
+HEETS_LID_H = 13.0                               # цветная крышка пачки
+CLEAN_CAP_L = 22.0                               # цветной колпачок чистилки
+CABLE_R = 2.0                                    # кабель зарядки
+DEV_COLORS = ["#2f3a5a", "#7a5c66", "#2e3138", "#5d636e"]
+DEV_CAP_COLOR, BUTTON_COLOR = "#a3a9b2", "#dfe3e8"
+PACK_COLOR, PACK_LID_COLORS = "#eef1f3", ["#1d9fa3"]
+CLEAN_COLOR, CLEAN_CAP_COLOR = "#2b2d31", "#f2701f"
+CABLE_COLOR = "#e39ab0"
+
 
 def rrect(x0, y0, w, h, r, z0, z1):
     """Скруглённый прямоугольник, выдавленный от z0 до z1."""
@@ -75,6 +92,17 @@ def cyl_x(xc, yc, zc, r, length):
 def cyl_y(xc, yc, zc, r, length):
     return (Manifold.cylinder(length, r, circular_segments=96)
             .rotate([-90, 0, 0]).translate([xc, yc - length / 2, zc]))
+
+
+def cyl_z(xc, yc, z0, z1, r):
+    return Manifold.cylinder(z1 - z0, r, circular_segments=48).translate([xc, yc, z0])
+
+
+def bar_x(x0, x1, yc, zc, w, h, r):
+    """Брусок вдоль X со скруглёнными продольными рёбрами: сечение w (по Y) × h (по Z)."""
+    cs = (CrossSection.square([h - 2 * r, w - 2 * r]).translate([r - h / 2, r - w / 2])
+          .offset(r, JoinType.Round, circular_segments=48))
+    return Manifold.extrude(cs, x1 - x0).rotate([0, 90, 0]).translate([x0, yc, zc])
 
 
 def u_scoop_y(xc, y0, y1, r, z_bottom):
@@ -149,28 +177,98 @@ def build(n=N_DEV, test=False):
     model = body
     for c in cuts:
         model = model - c
-    return model, (Wt, Dt, H)
+    layout = {"rows_y0": rows_y0, "hxs": hxs[:1] if test else hxs, "packs_y0": (y_f0,) if test else (y_f0, y_h0),
+              "clean_y0": None if test else clean_y0, "clean_floor": None if test else clean_floor}
+    return model, (Wt, Dt, H), layout
 
 
-def write_3mf(path, model, name):
-    mesh = model.to_mesh()
-    verts = np.asarray(mesh.vert_properties)[:, :3]
-    tris = np.asarray(mesh.tri_verts)
-    v = "\n".join(f'<vertex x="{a:.4f}" y="{b:.4f}" z="{c:.4f}"/>' for a, b, c in verts)
-    t = "\n".join(f'<triangle v1="{a}" v2="{b}" v3="{c}"/>' for a, b, c in tris)
-    model_xml = f'''<?xml version="1.0" encoding="UTF-8"?>
-<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
-<metadata name="Title">{name}</metadata>
-<resources>
-<object id="1" type="model" name="{name}">
+def contents(layout):
+    """Содержимое органайзера для картинки: список (имя, Manifold, цвет)."""
+    parts = []
+    for i, y0 in enumerate(layout["rows_y0"]):
+        yc = y0 + slot_w / 2
+        x0, x1 = x_dev0 + CLR_L, x_dev1 - CLR_L
+        zc = FLOOR + DEV_W / 2
+        parts.append((f"device-{i + 1}", bar_x(x0, x1 - DEV_CAP_L, yc, zc, DEV_T, DEV_W, DEV_R),
+                      DEV_COLORS[i % len(DEV_COLORS)]))
+        parts.append((f"device-{i + 1}-cap", bar_x(x1 - DEV_CAP_L, x1, yc, zc, DEV_T, DEV_W, DEV_R),
+                      DEV_CAP_COLOR))
+        top = FLOOR + DEV_W
+        parts.append((f"device-{i + 1}-button",
+                      rrect(x0 + BUTTON_AT - 3.25, yc - 3.25, 6.5, 6.5, 1.5, top - 0.3, top + 0.5),
+                      BUTTON_COLOR))
+
+    # кабель с штекером — в первом ложе, чтобы было видно, что устройство заряжается на месте
+    yc = layout["rows_y0"][0] + slot_w / 2
+    x_plug = x_dev0 + CLR_L
+    x_out, x_end = -12.0, -40.0
+    plug = bar_x(x_plug - 20.0, x_plug, yc, port_zc, 7.0, 11.5, 2.0)
+    cable = (cyl_x((x_out + x_plug - 20.0) / 2, yc, port_zc, CABLE_R, x_plug - 20.0 - x_out)
+             + Manifold.sphere(CABLE_R, 48).translate([x_out, yc, port_zc])
+             + cyl_z(x_out, yc, CABLE_R, port_zc, CABLE_R)
+             + Manifold.sphere(CABLE_R, 48).translate([x_out, yc, CABLE_R])
+             + cyl_x((x_end + x_out) / 2, yc, CABLE_R, CABLE_R, x_out - x_end))
+    parts += [("plug", plug, "#d8dbe0"), ("cable", cable, CABLE_COLOR)]
+
+    z0 = H - HEETS_DEPTH
+    k = 0
+    for py in layout["packs_y0"]:
+        for hx in layout["hxs"]:
+            x0, y0 = hx + HEETS_CLR, py + HEETS_CLR
+            parts.append((f"pack-{k + 1}",
+                          rrect(x0, y0, HEETS_W, HEETS_T, 1.0, z0, z0 + HEETS_H - HEETS_LID_H),
+                          PACK_COLOR))
+            parts.append((f"pack-{k + 1}-lid",
+                          rrect(x0, y0, HEETS_W, HEETS_T, 1.0, z0 + HEETS_H - HEETS_LID_H, z0 + HEETS_H),
+                          PACK_LID_COLORS[k % len(PACK_LID_COLORS)]))
+            k += 1
+
+    if layout["clean_y0"] is not None:
+        xc = (x_cl0 + x_cl1) / 2
+        zc = layout["clean_floor"] + CLEAN_D / 2
+        y0 = layout["clean_y0"] + 0.5
+        body_l = CLEAN_L - CLEAN_CAP_L
+        parts.append(("cleaner", cyl_y(xc, y0 + body_l / 2, zc, CLEAN_D / 2, body_l), CLEAN_COLOR))
+        parts.append(("cleaner-cap", cyl_y(xc, y0 + body_l + CLEAN_CAP_L / 2, zc, CLEAN_D / 2, CLEAN_CAP_L),
+                      CLEAN_CAP_COLOR))
+    return parts
+
+
+def write_3mf(path, parts, title):
+    """parts — список (имя, Manifold, цвет '#RRGGBB' или None). Цвета нужны только картинкам."""
+    colored = [(name, color) for name, _, color in parts if color]
+    resources, items = [], []
+    if colored:
+        resources.append('<basematerials id="1">\n' + "\n".join(
+            f'<base name="{name}" displaycolor="{color}"/>' for name, color in colored) + "\n</basematerials>")
+    pindex = 0
+    for i, (name, model, color) in enumerate(parts):
+        oid = i + 2 if colored else i + 1
+        mesh = model.to_mesh()
+        verts = np.asarray(mesh.vert_properties)[:, :3]
+        tris = np.asarray(mesh.tri_verts)
+        v = "\n".join(f'<vertex x="{a:.4f}" y="{b:.4f}" z="{c:.4f}"/>' for a, b, c in verts)
+        t = "\n".join(f'<triangle v1="{a}" v2="{b}" v3="{c}"/>' for a, b, c in tris)
+        mat = ""
+        if color:
+            mat = f' pid="1" pindex="{pindex}"'
+            pindex += 1
+        resources.append(f'''<object id="{oid}" type="model" name="{name}"{mat}>
 <mesh><vertices>
 {v}
 </vertices><triangles>
 {t}
 </triangles></mesh>
-</object>
+</object>''')
+        items.append(f'<item objectid="{oid}"/>')
+    resources_xml = "\n".join(resources)
+    model_xml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
+<metadata name="Title">{title}</metadata>
+<resources>
+{resources_xml}
 </resources>
-<build><item objectid="1"/></build>
+<build>{"".join(items)}</build>
 </model>'''
     ct = '''<?xml version="1.0" encoding="UTF-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
@@ -185,16 +283,24 @@ def write_3mf(path, model, name):
         z.writestr("[Content_Types].xml", ct)
         z.writestr("_rels/.rels", rels)
         z.writestr("3D/3dmodel.model", model_xml)
-    return verts, tris
 
 
 if __name__ == "__main__":
-    arg = sys.argv[1] if len(sys.argv) > 1 else str(N_DEV)
+    args = sys.argv[1:]
+    filled = "--filled" in args
+    args = [a for a in args if a != "--filled"]
+    arg = args[0] if args else str(N_DEV)
     test = arg == "test"
     n = 2 if test else int(arg)
     name = "lil-solid-organizer-test" if test else f"lil-solid-organizer-{n}-devices"
-    fname = sys.argv[2] if len(sys.argv) > 2 else f"{name}.3mf"
-    model, (w, d, h) = build(n, test)
-    write_3mf(fname, model, name)
+    if filled:
+        name += "-filled"
+    fname = args[1] if len(args) > 1 else f"{name}.3mf"
+    model, (w, d, h), layout = build(n, test)
+    parts = [(name, model, None)]
+    if filled:
+        parts += contents(layout)
+    write_3mf(fname, parts, name)
     print(f"{fname}: {w:.1f} × {d:.1f} × {h:.1f} мм, объём {model.volume()/1000:.1f} см³, "
-          f"genus {model.genus()}, статус {model.status()}")
+          f"genus {model.genus()}, статус {model.status()}"
+          + (f", деталей в сцене {len(parts)}" if filled else ""))
