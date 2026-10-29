@@ -1,0 +1,15 @@
+# Текст хранится с окончаниями строк LF
+* text=auto eol=lf
+
+# Модели, картинки и прочие бинарные форматы — не трогать
+*.3mf  binary
+*.stl  binary
+*.step binary
+*.stp  binary
+*.obj  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.webp binary
+*.pdf  binary
+*.zip  binary

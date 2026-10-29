@@ -1,0 +1,25 @@
+# Входящие файлы до разбора
+inbox/*
+!inbox/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node.js
+node_modules/
+
+# Временные файлы
+*.tmp
+*.bak
+~$*
+
+# Системный мусор
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Локальные настройки Claude Code
+.claude/settings.local.json
