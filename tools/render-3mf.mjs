@@ -443,6 +443,27 @@ function svgToPng(svg) {
   return new Resvg(svg, { font: { loadSystemFonts: true, defaultFontFamily: 'Segoe UI' } }).render().asPng();
 }
 
+// ---------- совместимость с принтерами ----------
+
+const BED_MARGIN = 5;   // запас от края стола на сторону, мм
+
+// Принтеры из PRINTERS.md, на которые модель помещается (в плане можно повернуть на 90°).
+function fittingPrinters(size) {
+  const file = new URL('../PRINTERS.md', import.meta.url);
+  const need = [size[0] + 2 * BED_MARGIN, size[1] + 2 * BED_MARGIN, size[2]];
+  const fits = [], misses = [];
+  if (fs.existsSync(file)) {
+    for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+      const m = /^\|\s*([^|]+?)\s*\|\s*(\d+(?:\.\d+)?)\s*\|\s*(\d+(?:\.\d+)?)\s*\|\s*(\d+(?:\.\d+)?)\s*\|/.exec(line);
+      if (!m) continue;
+      const [X, Y, Z] = [+m[2], +m[3], +m[4]];
+      const ok = ((need[0] <= X && need[1] <= Y) || (need[0] <= Y && need[1] <= X)) && need[2] <= Z;
+      (ok ? fits : misses).push(m[1]);
+    }
+  }
+  return { need: need.map(Math.ceil), fits, misses };
+}
+
 // ---------- запуск ----------
 
 const FLAGS = new Set(['filled']);   // опции без значения
@@ -518,6 +539,10 @@ if (opt.filled) {
   console.log(`Объектов в сборке: ${items}, треугольников: ${tris.length / 9}`);
   console.log(`Габариты: ${box.size.map((v) => v.toFixed(1)).join(' × ')} мм`);
   console.log(`Объём тела: ${(volume(tris) / 1000).toFixed(1)} см³`);
+  const printers = fittingPrinters(box.size);
+  console.log(`Нужен стол от ${printers.need[0]} × ${printers.need[1]} мм (с запасом ${BED_MARGIN} мм на сторону), высота печати от ${printers.need[2]} мм`);
+  console.log(`Помещается на: ${printers.fits.join(', ') || '—'}`);
+  console.log(`Не помещается на: ${printers.misses.join(', ') || '—'}`);
   console.log(`Миниатюра из 3mf: ${thumb ? 'есть → preview.png' : 'нет'}`);
   console.log(`Картинки: ${path.resolve(outDir)}`);
 }

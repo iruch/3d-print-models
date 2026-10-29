@@ -1,5 +1,5 @@
 {
-  "name": "crealityk1c-tools",
+  "name": "3d-print-models-tools",
   "private": true,
   "type": "module",
   "description": "Служебные скрипты проекта: рендер видов модели из 3mf",
