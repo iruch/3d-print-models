@@ -70,8 +70,8 @@ WHEEL_D, WHEEL_RIM_H, WHEEL_HUB_D, WHEEL_HUB_H = 25.0, 7.0, 13.7, 5.0
 WHEEL_BORE_D = AXLE_D + 0.5    # отверстие: зазор, чтобы ролик свободно крутился
 WHEEL_CBORE_D = BARB_D + 1.2   # выборка на торце под защёлку оси
 WHEEL_CBORE_H = 2.3            # её глубина; остаётся осевой люфт около 0.5 мм
-WHEEL_PRINT_X = 22.0           # где ролики лежат на столе рядом с кареткой
-WHEEL_PRINT_Y = 14.0
+WHEEL_PRINT_X = 60.0           # где ролики лежат на столе: в стороне от каретки и её поддержек
+WHEEL_PRINT_Y = 16.0
 
 # только для картинки: проволока корзины, направляющая
 WIRE_D = 3.0                   # проволока: по радиусу крючка
@@ -218,13 +218,15 @@ def build():
 
 
 def wheel_body():
-    """Ролик: ступица и обод, вращение контура вокруг оси. Ступица смотрит вниз, к пластине."""
+    """Ролик: ступица и обод, вращение контура вокруг оси. Ступица смотрит вниз, к пластине.
+    На торце обода только скосы 45°, без плоских ступенек: на столе этот торец внизу, и поддержка не нужна."""
     r_hub, r_rim, c = WHEEL_HUB_D / 2, WHEEL_D / 2, 1.8
     h = WHEEL_HUB_H + WHEEL_RIM_H
     r_bore, r_cbore = WHEEL_BORE_D / 2, WHEEL_CBORE_D / 2
+    cone = r_cbore - r_bore
     pts = [(r_bore, 0), (r_hub, 0), (r_hub, WHEEL_HUB_H), (r_rim - c, WHEEL_HUB_H), (r_rim, WHEEL_HUB_H + c),
-           (r_rim, h - c), (r_rim - c, h), (r_hub + 1.2, h), (r_hub + 1.2, h - 2.0), (r_hub - 0.6, h - 2.0),
-           (r_hub - 0.6, h), (r_cbore, h), (r_cbore, h - WHEEL_CBORE_H), (r_bore, h - WHEEL_CBORE_H)]
+           (r_rim, h - c), (r_rim - c, h), (r_hub + 1.2, h), (r_hub + 0.3, h - 0.9),
+           (r_hub - 0.6, h), (r_cbore, h), (r_cbore, h - WHEEL_CBORE_H + cone), (r_bore, h - WHEEL_CBORE_H)]
     return Manifold.revolve(CrossSection([pts], FillRule.EvenOdd), 96)
 
 
