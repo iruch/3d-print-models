@@ -2,13 +2,13 @@
 # requires-python = ">=3.10"
 # dependencies = ["numpy", "manifold3d"]
 # ///
-"""Каретка с двумя колёсами для верхней корзины посудомоечной машины Electrolux (замена 4055512018).
+"""Копия каретки с двумя колёсами для верхней корзины посудомоечной машины Electrolux, деталь 4055512018.
 Колёса берутся со старой детали, печатается только пластина с осями.
 Все размеры в мм. X — вдоль детали (0 = скруглённый конец, дальше к крючку),
 Y — поперёк (0 = середина), Z — по толщине (0 = задняя плоскость, плюс — к колёсам).
 
 Как стоит в машине: вертикально, крючком вверх. Крючок надет на горизонтальную проволоку корзины,
-пары стенок (усики) держат две проволоки, идущие вдоль детали, направляющая проходит между колёсами.
+пары стенок (усики) держат проволоку, направляющая проходит между колёсами.
 
 uv run carrier.py                 -> деталь для печати: electrolux-4055512018-wheel-carrier.3mf
 uv run carrier.py --filled        -> сцена для картинки: деталь, колёса, проволока, не для печати
@@ -22,9 +22,6 @@ import numpy as np
 from manifold3d import Manifold, CrossSection, FillRule, JoinType
 
 # ---------- параметры: сняты с фото детали по рулетке, штангенциркулем не проверялись ----------
-WIRE_D = 3.8                   # проволока корзины: ОЦЕНКА ПО ФОТО, от неё считаются крючок и зацепы
-WIRE_Y = 17.5                  # две проволоки вдоль детали: половина расстояния между ними
-
 L_PLATE = 80.5                 # длина пластины без язычка и крючка
 L_TOTAL = 91.0                 # длина вместе с крючком
 W = 42.0                       # ширина пластины
@@ -36,6 +33,7 @@ POCKET_D = 3.2                 # глубина ячеек между рёбра
 PLATEAU_IN = 1.6               # площадка со стороны колёс: отступ от края
 PLATEAU_T = 3.3                # и высота над краем
 PLATEAU_END = 78.0             # где она заканчивается по длине
+AXLE_CLEAR_D = 20.0            # круглый вырез в площадке вокруг оси
 
 AXLE_X = (13.0, 60.0)          # оси колёс от скруглённого конца; между ними 47 мм
 AXLE_D = 8.4                   # диаметр оси под отверстие колеса
@@ -43,37 +41,38 @@ AXLE_TOP = 21.5                # торец оси от задней плоск�
 AXLE_HOLE_D = 3.4              # сквозное отверстие в оси
 SLIT_W, SLIT_L = 1.6, 9.0      # прорезь в оси: ширина и глубина от торца
 BARB_D, BARB_H = 9.4, 1.5      # защёлка на конце оси: диаметр и высота
-BOSS_D0, BOSS_D1, BOSS_H = 16.0, 11.0, 1.5   # конус у основания оси
+SEAT_Z = T_RIM + PLATEAU_T + 1.5   # отсюда начинается колесо
+CONE_D0, CONE_D1 = 15.0, 10.0  # конус в основании оси
+FIN_T, FIN_R = 1.4, 8.5        # четыре ребра вокруг конуса: толщина и вылет
 DISH_D, DISH_RING_D, DISH_DEPTH = 15.6, 18.6, 6.5   # чаша за осью с обратной стороны
 
-LIP_W = 27.0                   # язычок с крючком на торце: ширина; проходит между двумя проволоками
+LIP_W = 27.0                   # язычок с крючком на торце: ширина
 LIP_T = 1.4                    # толщина
 LIP_DROP = 6.5                 # насколько крючок загибается к колёсам
+HOOK_R = 1.6                   # внутренний радиус крючка
 
-# Усики: четыре пары стенок, между стенками проходит проволока, зацеп не даёт ей выйти.
+# Усики: четыре пары стенок с зацепами.
 CLIP_X = (17.0, 27.0)          # пара у скруглённого конца: от и до по длине
 CLIP_H = 4.1                   # её высота над задней плоскостью
 RIB_Y = (14.2, 15.4)           # продольное ребро; на нём стоит внутренняя стенка пары
 NOTCH_W, NOTCH_D = 2.2, 1.9    # полукруглые прорези по бокам наружной стенки: ширина и глубина
-BARB_Y = 0.9                   # насколько зацеп выступает внутрь пары; наружная стенка пружинит
+BARB_Y = 1.2                   # насколько зацеп выступает внутрь пары
+BARB_GAP = 1.6                 # от задней плоскости до упора зацепа
 FLAP_X = (81.5, 84.8)          # пара у крючка: от и до по длине
 FLAP_H = (4.5, 3.1)            # высота: скошена, выше со стороны пластины
 LIP_NOTCH_X = (78.4, 81.5)     # полукруглая прорезь в борту перед парой
-LIP_NOTCH_D = 1.8              # её глубина; в оригинале 2.8, и деталь сломалась именно здесь
+LIP_NOTCH_D = 2.8              # её глубина
+STUB_X = (72.6, 74.0)          # низкая поперечная стенка перед ячейкой у крючка
+STUB_H = 1.8
 
-# проволока приварена к горизонтальной: положение зацепов и канавки считается от крючка
-HOOK_R = WIRE_D / 2 + 0.15     # внутренний радиус крючка
-HOOK_X = L_TOTAL - LIP_T - HOOK_R   # центр крючка
-WIRE_H_Z = LIP_T + HOOK_R      # центр горизонтальной проволоки
-WIRE_V_Z = WIRE_H_Z - WIRE_D   # центр двух проволок вдоль детали
-BARB_GAP = WIRE_D / 2 - WIRE_V_Z    # от задней плоскости до упора зацепа
-GROOVE_D = WIRE_V_Z + WIRE_D / 2 + 0.1   # глубина канавки под проволоку
-
-# колесо старой детали и направляющая: только для картинки
+# только для картинки: колесо старой детали, проволока корзины, направляющая
 WHEEL_D, WHEEL_RIM_H, WHEEL_HUB_D, WHEEL_HUB_H = 25.0, 7.0, 13.7, 5.0
-WHEEL_Z0 = T_RIM + PLATEAU_T + BOSS_H          # где начинается колесо
+WIRE_D = 3.0                   # проволока: по радиусу крючка
+WIRE_Y = 17.5                  # две проволоки вдоль детали
 RAIL_H = 20.0                  # направляющая между колёсами
 BODY_COLOR, WHEEL_COLOR, WIRE_COLOR, RAIL_COLOR = None, "#5d636e", "#d9822b", "#8d99a8"
+
+HOOK_X = L_TOTAL - LIP_T - HOOK_R   # центр крючка
 
 
 def rrect(x0, y0, w, h, r, z0, z1):
@@ -119,19 +118,19 @@ def notch(x0, x1, y0, y1, d=NOTCH_D):
 
 
 def barb(y_root, sign, x0, x1, tip_z):
-    """Зацеп на стенке: со стороны пластины упор для проволоки, с другой скос для заезда."""
+    """Зацеп на стенке: со стороны пластины упор, с другой скос для заезда."""
     return extrude_yz([(y_root, -BARB_GAP), (y_root + sign * BARB_Y, -BARB_GAP - 0.2), (y_root, tip_z)], x0, x1)
 
 
 def back_cells():
-    """Ячейки между рёбрами с обратной стороны. Крайний ряд — сплошная канавка под проволоку."""
-    rows = ((RIB_Y[1], W / 2 - RIM, GROOVE_D, ((3.0, 79.6),)),
-            (9.8, RIB_Y[0], POCKET_D, ((2.0, 18.5), (20.0, 36.0), (38.0, 61.5), (63.0, 79.6))),
-            (0.7, 8.9, POCKET_D, ((24.5, 36.0), (38.0, 49.5), (71.5, 79.6))))
+    """Ячейки между рёбрами с обратной стороны."""
+    rows = ((RIB_Y[1], W / 2 - RIM, ((3.0, 15.4), (28.6, 33.5), (35.0, STUB_X[0]), (STUB_X[1], 79.6))),
+            (9.8, RIB_Y[0], ((2.0, 18.5), (20.0, 36.0), (38.0, 61.5), (63.0, 79.6))),
+            (0.7, 8.9, ((24.5, 36.0), (38.0, 49.5), (71.5, 79.6))))
     cells = None
-    for y0, y1, depth, spans in rows:
+    for y0, y1, spans in rows:
         for x0, x1 in spans:
-            c = rrect(x0, y0, x1 - x0, y1 - y0, 1.0, -1, depth)
+            c = rrect(x0, y0, x1 - x0, y1 - y0, 1.0, -1, POCKET_D)
             cells = c if cells is None else cells + c
     inner = rrect(RIM, -W / 2 + RIM, 2 * L_PLATE, W - 2 * RIM, CORNER_R - RIM, -2, POCKET_D + 1)
     cells = both(cells) ^ inner
@@ -141,16 +140,14 @@ def back_cells():
 
 
 def axle(x):
-    """Ось с конусом и защёлкой. Со стороны скруглённого конца срезана клином 45°:
-    деталь печатается стоя на этом конце, и ось не требует поддержек."""
-    z_top = T_RIM + PLATEAU_T
-    a = (cyl(x, 0, z_top - 0.5, z_top + BOSS_H, BOSS_D0, BOSS_D1)
-         + cyl(x, 0, z_top, AXLE_TOP, AXLE_D)
-         + cyl(x, 0, AXLE_TOP - BARB_H, AXLE_TOP - 0.7, AXLE_D, BARB_D)
-         + cyl(x, 0, AXLE_TOP - 0.7, AXLE_TOP, BARB_D, AXLE_D - 0.4))
-    r = AXLE_D / 2
-    wedge = [(x - r, 0), (x - r + 12, 12), (x + 14, 12), (x + 14, -12), (x - r + 12, -12)]
-    return a ^ Manifold.extrude(CrossSection([wedge], FillRule.EvenOdd), AXLE_TOP - z_top + 2).translate([0, 0, z_top - 1])
+    """Ось: круглая, с конусом и четырьмя рёбрами в основании и защёлкой на конце."""
+    fin = extrude_xz([(-FIN_R, T_RIM - 0.5), (FIN_R, T_RIM - 0.5), (FIN_R, T_RIM), (CONE_D1 / 2, SEAT_Z), (-CONE_D1 / 2, SEAT_Z),
+                      (-FIN_R, T_RIM)], -FIN_T / 2, FIN_T / 2)
+    return (cyl(x, 0, T_RIM - 0.5, SEAT_Z, CONE_D0, CONE_D1)
+            + fin.translate([x, 0, 0]) + fin.rotate([0, 0, 90]).translate([x, 0, 0])
+            + cyl(x, 0, T_RIM, AXLE_TOP, AXLE_D)
+            + cyl(x, 0, AXLE_TOP - BARB_H, AXLE_TOP - 0.7, AXLE_D, BARB_D)
+            + cyl(x, 0, AXLE_TOP - 0.7, AXLE_TOP, BARB_D, AXLE_D - 0.4))
 
 
 def build():
@@ -159,9 +156,9 @@ def build():
     z_top = T_RIM + PLATEAU_T
     plateau = (rrect(PLATEAU_IN, -W / 2 + PLATEAU_IN, PLATEAU_END, W - 2 * PLATEAU_IN, CORNER_R - PLATEAU_IN,
                      T_RIM - 0.5, z_top)
-               - box(PLATEAU_END, -W, 0, PLATEAU_END + 20, W, z_top + 1)
-               # скос у скруглённого конца, чтобы площадка печаталась без поддержек
-               - extrude_xz([(0, T_RIM), (PLATEAU_IN, T_RIM), (PLATEAU_IN + PLATEAU_T + 0.1, z_top + 0.1), (0, z_top + 0.1)], -W, W))
+               - box(PLATEAU_END, -W, 0, PLATEAU_END + 20, W, z_top + 1))
+    for x in AXLE_X:
+        plateau = plateau - cyl(x, 0, T_RIM, z_top + 1, AXLE_CLEAR_D)
 
     # язычок вдоль задней плоскости, загнутый в крючок к колёсам
     r = HOOK_R
@@ -194,9 +191,14 @@ def build():
                          + box(L_PLATE - 0.5, RIB_Y[0], LIP_NOTCH_D, fx1, RIB_Y[1], T_RIM)
                          + extrude_xz(flap, RIB_Y[0], RIB_Y[1]))
 
-    # центральное кольцо и тонкое ребро со стороны колёс
+    # низкая поперечная стенка
+    model = model + both(box(STUB_X[0], RIB_Y[1], -STUB_H, STUB_X[1], outer, 1.0))
+
+    # центральное кольцо, тонкое ребро и рельефные значки со стороны колёс
     model = model + cyl(37.0, 0, 0, POCKET_D + 0.5, 6.6) - cyl(37.0, 0, -1, POCKET_D, 3.6)
-    model = model + box(23.0, -0.5, z_top - 0.2, 48.0, 0.5, z_top + 0.6)
+    model = model + box(23.0, -0.5, z_top - 0.2, 48.0, 0.5, z_top + 0.6) + box(72.0, -0.5, z_top - 0.2, 78.0, 0.5, z_top + 0.6)
+    logo = [(31.5, 9.5), (45, 9.5), (45, 3), (41, 3), (41, 5), (38.5, 5), (38.5, 4), (35.5, 4), (35.5, 5.5), (31.5, 5.5)]
+    model = model + both(Manifold.extrude(CrossSection([logo], FillRule.EvenOdd), 0.4).translate([0, 0, z_top - 0.1]))
 
     for x in AXLE_X:
         model = model + axle(x)
@@ -215,19 +217,20 @@ def wheel(x):
     pts = [(r_bore, 0), (r_hub, 0), (r_hub, WHEEL_HUB_H), (r_rim - c, WHEEL_HUB_H), (r_rim, WHEEL_HUB_H + c),
            (r_rim, h - c), (r_rim - c, h), (r_hub + 1.2, h), (r_hub + 1.2, h - 2.0), (r_hub - 0.6, h - 2.0),
            (r_hub - 0.6, h), (BARB_D / 2 + 0.6, h), (BARB_D / 2 + 0.6, h - 3.0), (r_bore, h - 3.0)]
-    return Manifold.revolve(CrossSection([pts], FillRule.EvenOdd), 96).translate([x, 0, WHEEL_Z0])
+    return Manifold.revolve(CrossSection([pts], FillRule.EvenOdd), 96).translate([x, 0, SEAT_Z])
 
 
 def basket():
     """Как деталь стоит в машине, только для картинки: проволока корзины и направляющая между колёсами."""
+    z_h = LIP_T + WIRE_D / 2
     wires = (Manifold.cylinder(120, WIRE_D / 2, circular_segments=32).rotate([-90, 0, 0])
-             .translate([HOOK_X, -60, WIRE_H_Z]))
+             .translate([HOOK_X, -60, z_h]))
     length = HOOK_X - 6.0
     for side in (1, -1):
         wires = wires + (Manifold.cylinder(length, WIRE_D / 2, circular_segments=32).rotate([0, 90, 0])
-                         .translate([6.0, side * WIRE_Y, WIRE_V_Z]))
+                         .translate([6.0, side * WIRE_Y, z_h - WIRE_D]))
     rail_x = sum(AXLE_X) / 2
-    rail = box(rail_x - RAIL_H / 2, -60, WHEEL_Z0 + WHEEL_HUB_H, rail_x + RAIL_H / 2, 60, WHEEL_Z0 + WHEEL_HUB_H + WHEEL_RIM_H)
+    rail = box(rail_x - RAIL_H / 2, -60, SEAT_Z + WHEEL_HUB_H, rail_x + RAIL_H / 2, 60, SEAT_Z + WHEEL_HUB_H + WHEEL_RIM_H)
     return [("basket-wires", wires, WIRE_COLOR), ("rail", rail, RAIL_COLOR)]
 
 
@@ -237,7 +240,7 @@ def pose(model, name):
         return model.rotate([180, 0, 0]).translate([0, 0, 40])
     if name == "wheels":      # колёсами вверх
         return model.translate([0, 0, 10])
-    return model.rotate([0, -90, 0])   # стоя на скруглённом торце, как печатать
+    return model.rotate([0, -90, 0])   # стоя на скруглённом торце
 
 
 def write_3mf(path, parts, title):
@@ -311,5 +314,4 @@ if __name__ == "__main__":
         parts += [(n, pose(m, pose_name), c) for n, m, c in basket()]
     write_3mf(fname, parts, name)
     print(f"{fname}: объём {model.volume()/1000:.1f} см³, кусков {len(model.decompose())}, "
-          f"genus {model.genus()}, статус {model.status()}; "
-          f"зацеп {BARB_GAP:.2f} мм от плоскости, канавка {GROOVE_D:.2f} мм, проволока {WIRE_D} мм")
+          f"genus {model.genus()}, статус {model.status()}")
