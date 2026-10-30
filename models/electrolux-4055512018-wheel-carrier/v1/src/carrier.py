@@ -3,7 +3,7 @@
 # dependencies = ["numpy", "manifold3d"]
 # ///
 """Копия каретки с двумя колёсами для верхней корзины посудомоечной машины Electrolux, деталь 4055512018.
-Колёса берутся со старой детали, печатается только пластина с осями.
+В файле для печати пластина с осями и два ролика рядом с ней.
 Все размеры в мм. X — вдоль детали (0 = скруглённый конец, дальше к крючку),
 Y — поперёк (0 = середина), Z — по толщине (0 = задняя плоскость, плюс — к колёсам).
 
@@ -65,8 +65,15 @@ LIP_NOTCH_D = 2.8              # её глубина
 STUB_X = (72.6, 74.0)          # низкая поперечная стенка перед ячейкой у крючка
 STUB_H = 1.8
 
-# только для картинки: колесо старой детали, проволока корзины, направляющая
+# ролик: контур снят с фото, отверстие подогнано под напечатанную ось
 WHEEL_D, WHEEL_RIM_H, WHEEL_HUB_D, WHEEL_HUB_H = 25.0, 7.0, 13.7, 5.0
+WHEEL_BORE_D = AXLE_D + 0.5    # отверстие: зазор, чтобы ролик свободно крутился
+WHEEL_CBORE_D = BARB_D + 1.2   # выборка на торце под защёлку оси
+WHEEL_CBORE_H = 2.3            # её глубина; остаётся осевой люфт около 0.5 мм
+WHEEL_PRINT_X = 22.0           # где ролики лежат на столе рядом с кареткой
+WHEEL_PRINT_Y = 14.0
+
+# только для картинки: проволока корзины, направляющая
 WIRE_D = 3.0                   # проволока: по радиусу крючка
 WIRE_Y = 17.5                  # две проволоки вдоль детали
 RAIL_H = 20.0                  # направляющая между колёсами
@@ -209,15 +216,26 @@ def build():
     return model
 
 
-def wheel(x):
-    """Колесо старой детали для картинки: ступица и обод, вращение контура вокруг оси."""
+def wheel_body():
+    """Ролик: ступица и обод, вращение контура вокруг оси. Ступица смотрит вниз, к пластине."""
     r_hub, r_rim, c = WHEEL_HUB_D / 2, WHEEL_D / 2, 1.8
     h = WHEEL_HUB_H + WHEEL_RIM_H
-    r_bore = AXLE_D / 2 + 0.1
+    r_bore, r_cbore = WHEEL_BORE_D / 2, WHEEL_CBORE_D / 2
     pts = [(r_bore, 0), (r_hub, 0), (r_hub, WHEEL_HUB_H), (r_rim - c, WHEEL_HUB_H), (r_rim, WHEEL_HUB_H + c),
            (r_rim, h - c), (r_rim - c, h), (r_hub + 1.2, h), (r_hub + 1.2, h - 2.0), (r_hub - 0.6, h - 2.0),
-           (r_hub - 0.6, h), (BARB_D / 2 + 0.6, h), (BARB_D / 2 + 0.6, h - 3.0), (r_bore, h - 3.0)]
-    return Manifold.revolve(CrossSection([pts], FillRule.EvenOdd), 96).translate([x, 0, SEAT_Z])
+           (r_hub - 0.6, h), (r_cbore, h), (r_cbore, h - WHEEL_CBORE_H), (r_bore, h - WHEEL_CBORE_H)]
+    return Manifold.revolve(CrossSection([pts], FillRule.EvenOdd), 96)
+
+
+def wheel(x):
+    """Ролик на оси, для картинки."""
+    return wheel_body().translate([x, 0, SEAT_Z])
+
+
+def wheel_on_bed(y):
+    """Ролик на столе: ободом вниз, ступицей вверх, так он печатается без поддержек."""
+    h = WHEEL_HUB_H + WHEEL_RIM_H
+    return wheel_body().rotate([180, 0, 0]).translate([WHEEL_PRINT_X, y, h])
 
 
 def basket():
@@ -312,6 +330,8 @@ if __name__ == "__main__":
     if filled:
         parts += [(f"wheel-{i + 1}", pose(wheel(x), pose_name), WHEEL_COLOR) for i, x in enumerate(AXLE_X)]
         parts += [(n, pose(m, pose_name), c) for n, m, c in basket()]
+    elif pose_name == "print":
+        parts += [(f"wheel-{i + 1}", wheel_on_bed(y), None) for i, y in enumerate((WHEEL_PRINT_Y, -WHEEL_PRINT_Y))]
     write_3mf(fname, parts, name)
     print(f"{fname}: объём {model.volume()/1000:.1f} см³, кусков {len(model.decompose())}, "
           f"genus {model.genus()}, статус {model.status()}")
