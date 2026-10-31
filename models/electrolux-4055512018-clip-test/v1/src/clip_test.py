@@ -4,7 +4,7 @@
 # ///
 """Пробник клипс для каретки Electrolux 4055512018: три рабочие пары с разным зазором и пара от крючка.
 Пробник вырезан из самой каретки (carrier.py рядом), поэтому клипсы те же и печатаются так же, стоя.
-Канал под проволоку здесь сквозной: пробник проверяет только клипсы, поперечные рёбра ему мешают.
+Канал под проволоку здесь сквозной: пробник проверяет только клипсы, поэтому поперечные рёбра срезаны до дна ячеек.
 Все размеры в мм, оси как в carrier.py: X — вдоль детали, Y — поперёк, Z — по толщине.
 
 uv run clip_test.py            -> пробник для печати: electrolux-4055512018-clip-test.3mf
@@ -17,13 +17,19 @@ import carrier as c
 
 GAPS = (2.2, 2.5, 2.8)         # зазор между зацепами у рабочих пар; проволока толще него и разводит стенки
 HOOK_GAP = 2.8                 # зазор у пары от крючка
-X_LOW, X_TOP = 10.0, 29.0      # какой кусок каретки берём у рабочей пары
+X_LOW, X_TOP = 10.0, 31.0      # какой кусок каретки берём у рабочей пары
+X_TOP_HOOK = 85.0              # где кончается кусок у крючка
 HOOK_SHIFT = 56.0              # на столько сдвигаем кусок у крючка, чтобы он встал вровень
 Y_IN = 11.4                    # внутренний край куска; наружный — край каретки
 PITCH = 11.2                   # шаг пар поперёк пробника
 SLAB_TOP = c.T_RIM + c.PLATEAU_T
-PLATEAU_END = c.PLATEAU_END - HOOK_SHIFT   # где заканчивается толстая часть куска у крючка
-MARK_W, MARK_D, MARK_L, MARK_STEP = 0.8, 0.5, 6.0, 1.8   # насечки: одна, две, три — номер рабочей пары
+MARK_W, MARK_D, MARK_L, MARK_STEP = 0.7, 0.5, 8.0, 1.2   # насечки: одна, две, три — номер рабочей пары
+TIE_LOW, TIE_TOP = (X_LOW, 14.5), (29.2, X_TOP)   # перемычки между кусками: вне наружной стенки, чтобы не мешать ей пружинить
+
+
+def channel(x0, x1):
+    """Паз под проволоку между стенками, до дна ячеек."""
+    return c.box(x0, c.RIB_Y[1], -8, x1, c.OUTER_Y, c.FLOOR_Z)
 
 
 def piece(gap, hook=False):
@@ -32,10 +38,11 @@ def piece(gap, hook=False):
     c.FLAP_SNAP = c.WIRE_NOM - gap
     model = c.build()
     shift = HOOK_SHIFT if hook else 0.0
-    part = model ^ c.box(X_LOW + shift, Y_IN, -10, X_TOP + shift, c.W / 2 + 1, SLAB_TOP + 1)
-    # канал вокруг зацепов уже есть, здесь он продлевается до краёв куска
+    top = X_TOP_HOOK if hook else X_TOP
+    part = model ^ c.box(X_LOW + shift, Y_IN, -10, top, c.W / 2 + 1, SLAB_TOP + 1)
+    # окно вокруг зацепов уже есть, здесь паз продлевается до краёв куска
     x0, x1 = c.FLAP_X if hook else c.CLIP_X
-    part = part - c.window(X_LOW + shift - 1, x0) - c.window(x1, X_TOP + shift + 1)
+    part = part - channel(X_LOW + shift - 1, x0) - channel(x1, top + 1)
     if hook:   # остаток низкой поперечной стенки: к клипсам не относится
         part = part - c.box(c.STUB_X[0], c.RIB_Y[1], -6, c.STUB_X[1], c.W / 2 - c.RIM, 0)
     return part.translate([-shift, 0, 0])
@@ -43,7 +50,7 @@ def piece(gap, hook=False):
 
 def marks(n, dy):
     """Насечки на лицевой стороне: сверху открыты, поэтому печатаются без поддержек."""
-    mid = (c.RIB_Y[1] + c.OUTER_Y) / 2 + dy
+    mid = (Y_IN + c.RIB_Y[1]) / 2 + dy
     y0 = mid - (n - 1) * MARK_STEP / 2
     cut = None
     for i in range(n):
@@ -61,10 +68,10 @@ def build():
         model = part if model is None else model + part
     last = len(GAPS)
     model = model + piece(HOOK_GAP, hook=True).translate([0, last * PITCH, 0])
-    # перемычки между кусками: только над клипсами, стенкам они не мешают
+    # перемычки между кусками стоят вне наружной стенки; кусок у крючка короче, он держится на нижней
     for i in range(last):
-        top = X_TOP if i < last - 1 else PLATEAU_END
-        model = model + c.box(X_LOW, 19.4 + i * PITCH, c.FLOOR_Z, top, Y_IN + (i + 1) * PITCH, SLAB_TOP)
+        for x0, x1 in (TIE_LOW, TIE_TOP) if i < last - 1 else (TIE_LOW,):
+            model = model + c.box(x0, 19.4 + i * PITCH, c.FLOOR_Z, x1, Y_IN + (i + 1) * PITCH, SLAB_TOP)
     return model
 
 
