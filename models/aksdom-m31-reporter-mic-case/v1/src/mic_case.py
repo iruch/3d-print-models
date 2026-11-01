@@ -64,7 +64,7 @@ PANEL_D = 1.2       # глубина панели, край со скосом 45
 TIP_X = 42.0        # кончик крыла от оси
 APEX_X = 29.3       # самое узкое место крыла на половине высоты
 ARC_R = 76.6        # радиус вогнутой дуги
-EDGE_DIP = 0.9      # верх и низ крыла чуть проваливаются к боксу, как на рисунке
+EDGE_DIP = 0.0      # на рисунке верх и низ крыла чуть проваливаются, до 0,7 мм у бокса; ровный край ложится на стол, иначе там мост 11 мм
 WING_TIP = 4.0      # толщина кончика крыла
 
 # ---------- надпись на боксе ----------
@@ -126,7 +126,7 @@ BOT_V_R = 13.35     # дно канавки в отверстии бокса
 
 PEDESTAL_Z = 43.0  # дно колодца: верх передатчика на 9–12 мм выше бокса, за него берутся и сжимают прищепку
 BLADE_T = 2.0       # пластина, на которую садится прищепка
-BLADE_H = 15.0      # заходит за штырьки, но не доходит до проушины
+BLADE_H = 8.5       # высота пластины над дном по оси, в вырезе; по бокам вырез поднимается под 45°
 JAW_ROOM = 0.5      # добавка к глубине колодца: зубцы раскрываются на пластине
 
 
@@ -279,14 +279,14 @@ def blade_y():
 
 
 def blade():
-    """Пластина на всю ширину колодца: с запасом передатчик иначе болтался бы и стучал в запись.
-    Верх скошен со стороны прищепки, чтобы зубцы находили пластину на ощупь."""
-    x = well_half()[0] + 0.5
+    """Пластина поперёк колодца: с запасом передатчик иначе болтался бы и стучал в запись.
+    Сверху вырез под 45°: вверх дном она растёт от стенок воронки к середине, ровный верх висел бы полоской поперёк колодца.
+    В вырез попадают штырьки прищепки, а зубцы садятся на края выреза."""
     y0, y1 = blade_y()
-    z0, z1 = PEDESTAL_Z - 0.5, PEDESTAL_Z + BLADE_H
-    base = Manifold.cube([2 * x, y1 - y0, z1 - 2.5 - z0]).translate([-x, y0, z0])
-    tip = Manifold.cube([2 * x, 0.8, 0.01]).translate([-x, y1 - 0.8, z1 - 0.01])
-    return Manifold.batch_hull([base, tip])
+    z0, zn = PEDESTAL_Z - 0.5, PEDESTAL_Z + BLADE_H
+    xe = 16.0       # края уходят в стенки
+    pts = [[-xe, z0], [xe, z0], [xe, zn + xe], [0, zn], [-xe, zn + xe]]
+    return CrossSection([pts], FillRule.EvenOdd).extrude(y1 - y0).rotate([90, 0, 0]).translate([0, y1, 0])
 
 
 def well():
@@ -294,6 +294,10 @@ def well():
     x, y = well_half()
     z0, z1, z2 = PEDESTAL_Z, BOX_H - TOP_PLATE - 16, BOX_H - TOP_PLATE - 4
     low = Manifold.cube([2 * x, 2 * y, z1 - z0]).translate([-x, -y, z0])
+    # дно перед пластиной двускатное: вверх дном плоское было бы мостом 15 мм, позади пластины мост короткий
+    b1 = blade_y()[1]
+    valley = [[b1, z0 + 0.01], [y, z0 + 0.01], [(b1 + y) / 2, z0 - (y - b1) / 2]]
+    low = low + CrossSection([valley], FillRule.EvenOdd).extrude(2 * x).rotate([90, 0, 90]).translate([-x, 0, 0])
     base = Manifold.cube([2 * x, 2 * y, 0.2]).translate([-x, -y, z1 - 0.2])
     top = CrossSection.circle(18.5, 96).extrude(0.2).translate([0, 0, z2 - 0.2])
     return low + Manifold.batch_hull([base, top])
@@ -667,7 +671,7 @@ if __name__ == '__main__':
     print('высота над боксом', round(PEDESTAL_Z + TX_GAP + TX_L - BOX_H, 1), 'при настоящей длине 47:', round(PEDESTAL_Z + TX_GAP + 47 - BOX_H, 1))
     # прогон сверху до посадки: закрытый передатчик до пластины, ниже прищепка сжата
     tip_seated = PEDESTAL_Z + TX_GAP + TX_L - CLIP_TOP - CLIP_L
-    start = PEDESTAL_Z + BLADE_H - tip_seated
+    start = PEDESTAL_Z + BLADE_H + CLIP_W / 2 - tip_seated
     full = p['box']
     worst = 99.0
     for dz in range(70, -1, -1):

@@ -26,7 +26,7 @@ LUG_HS = (3.6, 3.8, 4.0)        # кольца головы: высота лап
 LUG_GAPS = (0.1, 0.2, 0.3)      # ручка: зазор лапки до конуса плиты
 TOP_HALF = 22.0                 # верх колодца: половина стороны
 WELL_WALL = 3.2                 # стенка вокруг колодца снизу
-Z_LOW = M.PEDESTAL_Z - 3.0      # кусок бокса начинается под дном колодца
+Z_LOW = M.PEDESTAL_Z - 11.0     # кусок бокса начинается под двускатным дном колодца
 Z_STEP = 60.0                   # выше этой высоты он широкий, под гнездо головы
 SOCKET_H = M.SPIGOT_L + 4.0     # кусок бокса с гнездом ручки
 SOCKET_W = 38.0
@@ -49,7 +49,8 @@ def well_outer():
 
 
 def well_piece(bumps=True):
-    out = well_outer() - M.well() - M.top_socket() + M.blade()
+    outer = well_outer()
+    out = outer - M.well() - M.top_socket() + (M.blade() ^ outer)
     return out + M.top_bumps() if bumps else out
 
 
