@@ -72,6 +72,7 @@ POCKET_GAP = 0.15   # зазор выемки на сторону
 BALL_D = 52.0
 NECK_D, NECK_H = 36.0, 4.3
 BALL_CZ = BOX_H + 25.0
+BALL_ROOF = 60.0    # верх полости шара конус с таким нависанием от вертикали, None — полость сферой; снаружи шар не меняется
 HANDLE_D, HANDLE_END_D, HANDLE_L = 30.0, 25.0, 78.0   # у бокса шире, к низу сужается
 
 # ---------- байонеты: поворот на 45° до упора и щелчок ----------
@@ -374,16 +375,29 @@ def neck_prof():
     return [[0, z], [NECK_D / 2, z], [NECK_D / 2, z + NECK_H - 0.8], [NECK_D / 2 - 0.8, z + NECK_H], [15.0, z + NECK_H + 2], [0, z + NECK_H + 2]]
 
 
+def ball_cavity():
+    """Полость шара. Купол сверху слишком пологий и сам не напечатается, поэтому верх полости идёт прямым конусом
+    от сферы к вершине под макушкой: дальше всё нависание равно BALL_ROOF, стенка у макушки 2 мм."""
+    r = BALL_D / 2 - 2.0
+    cz = BALL_CZ
+    s = Manifold.sphere(r, 96).translate([0, 0, cz])
+    if BALL_ROOF is None:
+        return s
+    a = math.radians(2 * (90.0 - BALL_ROOF))    # хорда от вершины сферы до точки a от неё идёт под углом 90 - a / 2
+    z0, r0 = r * math.cos(a), r * math.sin(a)
+    return s.trim_by_plane([0, 0, -1], -(cz + z0)) + revolve([[0, cz + z0 - 0.01], [r0, cz + z0 - 0.01], [0, cz + r]])
+
+
 def head():
     """Шар со сквозными отверстиями, шейка, юбка байонета с тремя лапками."""
     R = BALL_D / 2
     base_z = BOX_H
     cz = BALL_CZ
     shell = Manifold.sphere(R, 128).translate([0, 0, cz])
-    inside = Manifold.sphere(R - 2.0, 96).translate([0, 0, cz])
+    inside = ball_cavity()
     neck = revolve(neck_prof())
-    band = Manifold.cylinder(4.0, R + 1.3, R + 1.3, 128).translate([0, 0, cz - 2.0])
-    band = band - Manifold.cylinder(6, R - 1.0, R - 1.0, 128).translate([0, 0, cz - 3.0])
+    # поясок снизу со скосом 45°: шар печатается вверх, плоская кромка висела бы в воздухе
+    band = revolve([[R - 1.0, cz - 3.3], [R, cz - 3.3], [R + 1.3, cz - 2.0], [R + 1.3, cz + 2.0], [R - 1.0, cz + 2.0]])
     b = (shell + neck) - inside + band
     holes = []
     pitch, hole_d = 3.5, 2.2
@@ -395,7 +409,7 @@ def head():
             n = max(1, round(2 * math.pi * R * math.sin(th) / pitch))
             for i in range(n):
                 ph = 360 * (i + 0.5 * (round(th / dth) % 2)) / n
-                c = Manifold.cylinder(9, hole_d / 2, hole_d / 2, 10).translate([0, 0, R - 5])
+                c = Manifold.cylinder(11, hole_d / 2, hole_d / 2, 10).translate([0, 0, R - 8])
                 holes.append(c.rotate([0, deg, 0]).rotate([0, 0, ph]).translate([0, 0, cz]))
         th += dth
     b = b - Manifold.batch_boolean(holes, OpType.Add)
@@ -508,6 +522,21 @@ def build(kind='taper'):
     return dict(box=box(kind), head=head(), handle=handle(), letters=letters(), tx_body=tb, tx_grille=tg, tx_clip=tc)
 
 
+def overhangs(name, m, limit=61.0):
+    """Нависания в положении печати: грани круче limit от вертикали, кроме лежащих на столе. Края круглых отверстий всегда попадают сюда."""
+    b = m.bounding_box()
+    v, t = to_mesh(m.translate([0, 0, -b[2]]))
+    a, e, c = v[t[:, 0]], v[t[:, 1]], v[t[:, 2]]
+    n = np.cross(e - a, c - a)
+    area = np.linalg.norm(n, axis=1) / 2
+    down = np.degrees(np.arcsin(np.clip(-n[:, 2] / (2 * area + 1e-12), -1, 1)))     # 0 — стенка, 90 — потолок
+    zc = (a[:, 2] + e[:, 2] + c[:, 2]) / 3
+    bad = (down > limit) & (zc > 0.3)
+    print(f'{name}: круче {limit:.0f}° {area[bad].sum():.0f} мм² из {area.sum():.0f}, самый большой пояс по высоте:', end=' ')
+    bands = np.floor(zc[bad] / 2) * 2
+    print(', '.join(f'{z:.0f}–{z + 2:.0f} мм {area[bad][bands == z].sum():.0f} мм²' for z in sorted(np.unique(bands), key=lambda z: -area[bad][bands == z].sum())[:3]))
+
+
 def turned(m, sense, deg, dz=0.0):
     """Деталь нарисована закрытой: deg — на сколько она не довёрнута до упора, dz — на сколько не дошла до посадки."""
     return m.rotate([0, 0, -sense * deg]).translate([0, 0, dz])
@@ -608,4 +637,7 @@ if __name__ == '__main__':
         worst = min(worst, t.min_gap(walls, 5.0))
     print('прогон: наименьший зазор к стенкам', round(worst, 2))
     bayonet_check(p)
+    overhangs('бокс вверх дном', p['box'].rotate([180, 0, 0]))
+    overhangs('голова юбкой вниз', p['head'])
+    overhangs('ручка хвостовиком вниз', p['handle'].rotate([180, 0, 0]))
     print('вся длина', round(p['head'].bounding_box()[5] - p['handle'].bounding_box()[2], 1))

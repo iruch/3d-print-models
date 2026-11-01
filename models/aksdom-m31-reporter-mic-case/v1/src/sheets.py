@@ -4,7 +4,7 @@
 # ///
 """Листы эскиза кейса-микрофона: форма, размеры, посадка, варианты цветов. Рендер через VTK, подписи шрифтом Segoe UI (Windows).
 
-uv run sheets.py form sizes fit bayonet colors        -> все листы в ../img
+uv run sheets.py form sizes fit bayonet ball colors   -> все листы в ../img
 uv run sheets.py colors --top слово --bottom слово --out папка   -> другая надпись, картинки в другую папку
 Без uv: pip install numpy manifold3d matplotlib fonttools pyvista pillow, дальше python вместо uv run.
 """
@@ -506,6 +506,33 @@ def sheet_bayonet(out, kind='taper'):
     print('лист байонеты', flush=True)
 
 
+def sheet_ball(out):
+    """Разрезы шара: как было и варианты полости с конусом. Снаружи шар один и тот же."""
+    S = 10.5
+    PW, PH = 620, 640
+    zc = D.BALL_CZ
+    f = lambda z, y: (PW / 2 + y * S, PH / 2 - (z - zc) * S)
+    W, H = 2100, 960
+    sh = Image.new('RGB', (W, H), 'white')
+    dr = ImageDraw.Draw(sh)
+    dr.text((60, 36), 'Верх шара', font=font(54, True), fill=INK)
+    dr.text((60, 106), 'Разрез через ось, шар стоит как при печати. Снаружи все варианты одинаковые, меняется только полость внутри.', font=font(27), fill=MUTED)
+    keep = D.BALL_ROOF
+    cells = [(None, 'Как было: сфера', 'Стенка 2 мм, но наверху купол почти плоский и висит в воздухе. Без поддержек провиснет.'),
+             (60.0, 'Вариант 1: конус 60°', 'Внутри прямой конус, нависание 60°. Легче второго варианта. Стоит в модели.'),
+             (52.0, 'Вариант 2: конус 52°', 'Нависание меньше, печатается надёжнее, стенка толще и отверстия длиннее.')]
+    for i, (roof, title, txt) in enumerate(cells):
+        D.BALL_ROOF = roof
+        cut = D.head().trim_by_plane([0, 0, 1], zc - 30).rotate([0, 90, 0]).slice(0.0)
+        x = 60 + i * 680
+        dr.text((x, 170), title, font=font(30, True), fill=ACC if roof == keep else INK)
+        sh.paste(cut_panel([(cut, '#3F4650')], f, (PW, PH)), (x, 214))
+        block(dr, (x, 214 + PH + 8), txt, font(24), PW, gap=6)
+    D.BALL_ROOF = keep
+    sh.save(out / 'design-ball.png')
+    print('лист шар', flush=True)
+
+
 K, Wh, Yl, Bl, Rd, Tl, Pa = 'black', 'white', 'yellow', 'blue', 'red', 'teal', 'pastel'
 COMBOS = [
     ('Белый бокс', [(K, Wh, K, Rd), (K, Wh, K, Bl), (Wh, Wh, Yl, Yl), (Tl, Wh, Tl, Tl), (Rd, Wh, Rd, Rd), (Bl, Wh, Bl, Bl)]),
@@ -557,7 +584,7 @@ def sheet_colors(rows, first, path, title):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('sheets', nargs='+', choices=['form', 'sizes', 'fit', 'bayonet', 'colors'])
+    ap.add_argument('sheets', nargs='+', choices=['form', 'sizes', 'fit', 'bayonet', 'ball', 'colors'])
     ap.add_argument('--top', default=D.TEXT[0])
     ap.add_argument('--bottom', default=D.TEXT[1])
     ap.add_argument('--out', default=str(HERE.parent / 'img'))
@@ -573,6 +600,8 @@ if __name__ == '__main__':
         sheet_fit(out)
     if 'bayonet' in args.sheets:
         sheet_bayonet(out)
+    if 'ball' in args.sheets:
+        sheet_ball(out)
     if 'colors' in args.sheets:
         sheet_colors(COMBOS[:3], 1, out / 'colors-1.png', 'Цвета, часть 1')
         sheet_colors(COMBOS[3:6], 19, out / 'colors-2.png', 'Цвета, часть 2')
