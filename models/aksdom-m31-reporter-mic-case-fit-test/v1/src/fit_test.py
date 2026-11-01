@@ -94,7 +94,7 @@ def tile():
     w, h, t = TILE
     pocket = solid.offset(M.POCKET_GAP, M.JoinType.Round, 6, 18).extrude(M.POCKET_D + 1).translate([0, 0, t - M.POCKET_D])
     plate = M.rrect(w, h, 3.0).extrude(t) - pocket
-    return plate.rotate([-90, 0, 0]), full.extrude(M.LETTER_T)
+    return plate.rotate([-90, 0, 0]), full.extrude(M.LETTER_T).rotate([180, 0, 0])
 
 
 def on_bed(m, x, y):

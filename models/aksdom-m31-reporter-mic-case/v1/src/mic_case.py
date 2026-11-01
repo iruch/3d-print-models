@@ -76,7 +76,7 @@ POCKET_GAP = 0.15   # зазор выемки на сторону
 BALL_D = 52.0
 NECK_D, NECK_H = 36.0, 4.3
 BALL_CZ = BOX_H + 25.0
-BALL_ROOF = 60.0    # верх полости шара конус с таким нависанием от вертикали, None — полость сферой; снаружи шар не меняется
+BALL_ROOF = 52.0    # верх полости шара конус с таким нависанием от вертикали, None — полость сферой; снаружи шар не меняется
 HANDLE_D, HANDLE_END_D, HANDLE_L = 30.0, 25.0, 78.0   # у бокса шире, к низу сужается
 
 # ---------- байонеты: поворот на 45° до упора и щелчок ----------
@@ -476,14 +476,19 @@ def spigot(b, with_bumps=True):
     spig = revolve([[0, -0.1], [r, -0.1], [r, SPIGOT_L - 0.6], [r - 0.6, SPIGOT_L], [0, SPIGOT_L]])
     # низ лапки вдоль конуса плиты, верх под 45°, чтобы лапка печаталась сверху вниз без поддержек
     lug_prof = [[r0, p + r0 - r - 0.2 + g], [rl, p + rl - r - 0.2 + g], [rl, p + 3.6], [r0, p + 3.6 + rl - r0]]
-    lugs, cuts, bumps = [], [Manifold.cylinder(SPIGOT_L - SPRING_Z + 1.5, SPRING_R, SPRING_R, 120).translate([0, 0, SPRING_Z - 1])], []
+    # потолок полости и пропилов под 45°: плоский провис бы при печати и прирос к язычкам, а поддержку сюда не поставить
+    z1 = SPRING_Z - 1
+    hollow = revolve([[0, z1 - SPRING_R], [SPRING_R, z1], [SPRING_R, SPIGOT_L + 0.5], [0, SPIGOT_L + 0.5]])
+    ri, ro = SPRING_R - 0.4, r + 0.5
+    under = [[ro, z1 + SPRING_R - ro], [SPRING_R, z1], [ri, z1]]        # низ тела над пропилом, продолжает верх лапки
+    lugs, cuts, bumps = [], [hollow], []
     bump = [[r - 0.2, -1.6], [BOT_BUMP_R, -0.35], [BOT_BUMP_R, 0.35], [r - 0.2, 1.6]]
     for a in BAYONET:
         c = a + s * TURN
         lugs.append(arc(lug_prof, c, s, -BOT_LUG_A, BOT_LUG_A))
-        # язычок: сверху горизонтальный пропил, у свободного конца радиальный
-        cuts.append(arc([[SPRING_R - 0.4, SPRING_Z - 1], [r + 0.5, SPRING_Z - 1], [r + 0.5, SPRING_Z], [SPRING_R - 0.4, SPRING_Z]], c, s, 2.0 - SPRING_A, 6.0))
-        cuts.append(arc([[SPRING_R - 0.4, SPRING_Z - 1], [r + 0.5, SPRING_Z - 1], [r + 0.5, SPIGOT_L + 0.5], [SPRING_R - 0.4, SPIGOT_L + 0.5]], c, s, 2.0, 6.0))
+        # язычок: сверху пропил поперёк стенки, у свободного конца радиальный
+        cuts.append(arc([[ri, SPRING_Z], [ro, SPRING_Z]] + under, c, s, 2.0 - SPRING_A, 6.0))
+        cuts.append(arc([[ri, SPIGOT_L + 0.5], [ro, SPIGOT_L + 0.5]] + under, c, s, 2.0, 6.0))
         bumps.append(prism(bump, SPRING_Z + 0.5, SPIGOT_L - 0.8, c - s * BOT_BUMP_A))
     b = b + ((spig + union(lugs)) - union(cuts))
     return b + union(bumps) if with_bumps else b
@@ -619,9 +624,14 @@ def plate():
         b = m.bounding_box()
         return m.translate([x - (b[0] + b[3]) / 2, y - (b[1] + b[4]) / 2, -b[2]])
     p = build()
-    return [('box', put(p['box'].rotate([180, 0, 0]), 110, 160), None),
-            ('head', put(p['head'], 75, 70), None),
-            ('handle', put(p['handle'].rotate([180, 0, 0]), 145, 70), None)]
+    parts = [('box', put(p['box'].rotate([180, 0, 0]), 110, 160), None),
+             ('head', put(p['head'], 75, 70), None),
+             ('handle', put(p['handle'].rotate([180, 0, 0]), 145, 70), None)]
+    # слова лицом вниз: лицо выходит гладким, а сторона, которая входит в паз, без наплыва первого слоя
+    words = sorted(text_lines()[0].decompose(), key=lambda c: c.bounds()[2] - c.bounds()[0])
+    for i, (w, y) in enumerate(zip(words + words, (150, 100, 125, 75))):
+        parts.append((f'word-{i + 1}', put(w.extrude(LETTER_T).rotate([180, 0, 0]), 190, y), None))
+    return parts
 
 
 if __name__ == '__main__':
