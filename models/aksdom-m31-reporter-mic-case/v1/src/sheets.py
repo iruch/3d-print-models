@@ -2,9 +2,9 @@
 # requires-python = ">=3.11"
 # dependencies = ["numpy", "manifold3d", "matplotlib", "fonttools", "pyvista", "pillow"]
 # ///
-"""Листы эскиза кейса-микрофона: форма, размеры, варианты цветов. Рендер через VTK, подписи шрифтом Segoe UI (Windows).
+"""Листы эскиза кейса-микрофона: форма, размеры, посадка, варианты цветов. Рендер через VTK, подписи шрифтом Segoe UI (Windows).
 
-uv run sheets.py form sizes colors                    -> все листы в ../img
+uv run sheets.py form sizes fit colors                -> все листы в ../img
 uv run sheets.py colors --top слово --bottom слово --out папка   -> другая надпись, картинки в другую папку
 Без uv: pip install numpy manifold3d matplotlib fonttools pyvista pillow, дальше python вместо uv run.
 """
@@ -341,7 +341,7 @@ def sheet_sizes(out, kind='taper'):
     sh = Image.new('RGB', (W, H), 'white')
     dr = ImageDraw.Draw(sh)
     dr.text((60, 36), 'Размеры, стыки и надпись', font=font(54, True), fill=INK)
-    dr.text((60, 106), 'Эскиз, не для печати. Передатчик пока по оценке с фото: 55 × 17 × 12 мм, с прищепкой 17 мм.', font=font(27), fill=MUTED)
+    dr.text((60, 106), 'Эскиз, не для печати. Передатчик снят с фото рядом с линейкой: в расчёте 50,5 × 18 × 12,2 мм, с прищепкой 19 мм.', font=font(27), fill=MUTED)
     top = D.BALL_CZ + D.BALL_D / 2
     zc = (top - D.HANDLE_L) / 2
     IW, IH = 560, 1250
@@ -375,9 +375,9 @@ def sheet_sizes(out, kind='taper'):
     ft = font(22)
     callout(dr, (py(1), pz(107)), (1310, 190), 'Шар пустой, отверстия сквозные, звук доходит до решётки передатчика.', 330, ft)
     callout(dr, (py(-16), pz(75)), (1310, 300), 'Голова: три лапки, поворот, щелчок.', 330, ft)
-    callout(dr, (py(D.TX_Y + 3), pz(62)), (1310, 380), 'Передатчик вставляется сверху в колодец с запасом 1 мм со всех сторон. Верх торчит из бокса на 8 мм, за него удобно взять.', 330, ft)
-    callout(dr, (py(D.TX_Y - D.TX_T / 2 - 1.6), pz(44)), (1310, 540), 'Оранжевая пластина: на неё садится родная прищепка, чтобы передатчик не стучал.', 330, ft)
-    callout(dr, (py(3), pz(27)), (1310, 640), 'Дно колодца: подгоним под настоящую длину передатчика.', 330, ft)
+    callout(dr, (py(D.TX_Y + 3), pz(70)), (1310, 380), 'Передатчик вставляется сверху в колодец с запасом 1 мм со всех сторон. Верх торчит из бокса на 9–12 мм, за него берутся и сжимают прищепку.', 330, ft)
+    callout(dr, (py(sum(D.blade_y()) / 2), pz(D.PEDESTAL_Z + 6)), (1310, 540), 'Оранжевая пластина: на неё садится родная прищепка, чтобы передатчик не стучал.', 330, ft)
+    callout(dr, (py(3), pz(D.PEDESTAL_Z - 6)), (1310, 640), 'Дно колодца поднято под длину передатчика.', 330, ft)
     callout(dr, (py(8), pz(10)), (1310, 730), 'Ручка: тоже три лапки и щелчок. Хвостовик Ø25 × 20 мм глубоко в боксе держит рычаг. Пандус под лапками и язычок щелчка ещё не нарисованы.', 330, ft)
 
     bx = 1690
@@ -393,6 +393,90 @@ def sheet_sizes(out, kind='taper'):
     block(dr, (bx, 640), txt, font(23), 370, gap=6)
     sh.save(out / 'design-sizes.png')
     print('лист размеры', flush=True)
+
+
+def fill_cut(sh, cs, f, color):
+    """Заливает сечение: контуры складываются по чётности, отверстия остаются пустыми."""
+    mask = None
+    for p in cs.to_polygons():
+        im = Image.new('1', sh.size)
+        ImageDraw.Draw(im).polygon([f(*a) for a in np.asarray(p)], fill=1)
+        a = np.asarray(im)
+        mask = a if mask is None else mask ^ a
+    if mask is not None:
+        sh.paste(color, mask=Image.fromarray((mask * 255).astype('uint8')))
+
+
+def cut_panel(cuts, f, size, ss=3):
+    im = Image.new('RGB', (size[0] * ss, size[1] * ss), 'white')
+    g = lambda a, b: tuple(ss * v for v in f(a, b))
+    for cs, color in cuts:
+        fill_cut(im, cs, g, color)
+    return im.resize(size, Image.LANCZOS)
+
+
+def mm(v):
+    return f'{v:.1f}'.replace('.', ',')
+
+
+def sheet_fit(out, kind='taper'):
+    """Точные сечения модели: как передатчик стоит в колодце и какие остаются зазоры."""
+    p = get(kind)
+    S = 12.5
+    tx = p['tx_body'] + p['tx_grille']
+    BOX, HEAD, TX, CLIP, BL = '#CBD5DE', '#8A8F98', '#22262B', '#3F4650', '#E0531A'
+    W, H = 2100, 1180
+    sh = Image.new('RGB', (W, H), 'white')
+    dr = ImageDraw.Draw(sh)
+    dr.text((60, 36), 'Посадка передатчика', font=font(54, True), fill=INK)
+    dr.text((60, 106), 'Точные сечения модели. Передатчик по верхней оценке с фото: настоящий меньше, зазоры у него будут больше.', font=font(27), fill=MUTED)
+    top = 190
+
+    def rot(m):
+        return m.rotate([0, 90, 0]).slice(0.0)
+
+    # продольный разрез: координаты сечения (z, y), лицо передатчика справа
+    zc, IW, IH = 70.0, 600, 760
+    f = lambda z, y: (IW / 2 + y * S, IH / 2 - (z - zc) * S)
+    im = cut_panel([(rot(p['box']), BOX), (rot(p['head']), HEAD), (rot(D.blade()), BL), (rot(p['tx_clip']), CLIP), (rot(tx), TX)], f, (IW, IH))
+    x1 = 60
+    sh.paste(im, (x1, top + 44))
+    dr.text((x1, top), 'Разрез сбоку, прищепка слева', font=font(30, True), fill=INK)
+
+    x0, y0 = D.well_half()
+    body_cut = lambda z: p['tx_body'].slice(z).bounds()
+    clip_cut = lambda z: p['tx_clip'].slice(z).bounds()
+    z_jaw = D.PEDESTAL_Z + D.TX_GAP + D.TX_L - D.CLIP_TOP - D.CLIP_L + 3.0
+    # сечение на высоте зубцов, вид сверху: лицо передатчика вверху
+    PW, PH = 600, 600
+    g = lambda x, y: (PW / 2 + x * S, PH / 2 - y * S)
+    im = cut_panel([(p['box'].slice(z_jaw), BOX), (D.blade().slice(z_jaw), BL), (p['tx_clip'].slice(z_jaw), CLIP), (tx.slice(z_jaw), TX)], g, (PW, PH))
+    x2 = 740
+    sh.paste(im, (x2, top + 44))
+    dr.text((x2, top), 'Вид сверху, на высоте зубцов', font=font(30, True), fill=INK)
+    b, c = body_cut(z_jaw), clip_cut(z_jaw)
+    t = (f'Спереди {mm(y0 - b[3])} мм, сзади {mm(c[1] + y0)} мм, по бокам {mm(x0 - b[2])} мм.\n'
+         f'Оранжевая пластина {mm(D.BLADE_T)} мм на всю ширину колодца. Прищепка стоит за ней, раскрыта на {mm(D.seated_open())}°: упираются штырьки длиной {mm(D.PRONG_L)} мм.')
+    block(dr, (x2, top + 44 + PH + 14), t, font(24), PW, gap=6)
+
+    # сечение в горле головы
+    z_neck = 77.0
+    im = cut_panel([(p['box'].slice(z_neck), BOX), (p['head'].slice(z_neck), HEAD), (p['tx_clip'].slice(z_neck), CLIP), (tx.slice(z_neck), TX)], g, (PW, PH))
+    x3 = 1420
+    sh.paste(im, (x3, top + 44))
+    dr.text((x3, top), 'Вид сверху, в горле головы', font=font(30, True), fill=INK)
+    gap = (p['tx_body'] + p['tx_grille'] + p['tx_clip']).min_gap(p['head'], 5.0)
+    t = (f'Самое тесное место всей посадки: от ребра передатчика до стенки Ø{D.TOP_THROAT:.0f} остаётся {mm(gap)} мм.\n'
+         'Ползунок и кнопка на одной стороне, справа на сечении.')
+    block(dr, (x3, top + 44 + PH + 14), t, font(24), PW, gap=6)
+
+    x, y = 60, H - 56
+    for name, col in (('бокс', BOX), ('голова', HEAD), ('передатчик', TX), ('прищепка', CLIP), ('пластина', BL)):
+        dr.rectangle([x, y, x + 26, y + 26], fill=col, outline='#8A8F98')
+        dr.text((x + 36, y - 4), name, font=font(24), fill=INK)
+        x += 60 + dr.textlength(name, font=font(24))
+    sh.save(out / 'design-fit.png')
+    print('лист посадка', flush=True)
 
 
 K, Wh, Yl, Bl, Rd, Tl, Pa = 'black', 'white', 'yellow', 'blue', 'red', 'teal', 'pastel'
@@ -446,7 +530,7 @@ def sheet_colors(rows, first, path, title):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('sheets', nargs='+', choices=['form', 'sizes', 'colors'])
+    ap.add_argument('sheets', nargs='+', choices=['form', 'sizes', 'fit', 'colors'])
     ap.add_argument('--top', default=D.TEXT[0])
     ap.add_argument('--bottom', default=D.TEXT[1])
     ap.add_argument('--out', default=str(HERE.parent / 'img'))
@@ -458,6 +542,8 @@ if __name__ == '__main__':
         sheet_form(out)
     if 'sizes' in args.sheets:
         sheet_sizes(out)
+    if 'fit' in args.sheets:
+        sheet_fit(out)
     if 'colors' in args.sheets:
         sheet_colors(COMBOS[:3], 1, out / 'colors-1.png', 'Цвета, часть 1')
         sheet_colors(COMBOS[3:6], 19, out / 'colors-2.png', 'Цвета, часть 2')

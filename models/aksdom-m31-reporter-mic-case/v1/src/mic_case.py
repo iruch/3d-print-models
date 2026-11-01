@@ -23,13 +23,27 @@ K = 52.0 / 180.0                     # мм на пиксель рисунка
 # ---------- надпись: две строки, задаётся параметром ----------
 TEXT = ('be', 'louder!')
 
-# ---------- передатчик: оценка по фото покупателя, штангенциркулем не проверялось ----------
-TX_L, TX_W, TX_T = 55.0, 17.0, 12.0
-CLIP_T = 5.0
-CLIP_L, CLIP_W = 36.0, 13.0
-TX_SIDE = 0.9       # на сколько выступают кнопка и ползунок сбоку (оценка)
+# ---------- передатчик: сняты с фото рядом с линейкой, штангенциркулем не проверялось ----------
+# Линейка лежит на листе, а передатчик выше неё, поэтому на фото он крупнее настоящего, примерно на 3–8 %.
+# Здесь верхняя оценка без этой поправки: настоящий около 47 × 17 × 11, запас выйдет не меньше TX_GAP.
+TX_L, TX_W, TX_T = 50.5, 18.0, 12.2
+TX_SIDE = 0.8       # на сколько выступают кнопка и ползунок, они на одной стороне, +X
+TX_R = 2.2          # скругление рёбер корпуса
 TX_GAP = 1.0        # запас вокруг передатчика со всех сторон: входит и вынимается свободно
-TX_Y = CLIP_T / 2   # передатчик с прищепкой стоит по центру бокса
+
+# Прищепка закрыта и стоит с наклоном: у зажима дальше от корпуса, у зубцов почти вплотную.
+CLIP_L, CLIP_W = 40.5, 11.0
+CLIP_TOP = 2.7      # от верхнего торца передатчика до конца зажима
+CLIP_PRESS = 6.8    # толщина прищепки вместе с зазором у зажима, спереди назад
+CLIP_TIP = 3.5      # то же у зубцов
+CLIP_PLATE = 2.3    # толщина планки
+PIVOT_FROM_TOP = 14.3   # ось прищепки от верхнего торца
+PIVOT_BACK = 1.7        # ось за спинкой корпуса
+EAR_L, EAR_W, EAR_D = 10.0, 7.0, 4.3    # проушина оси на спинке, ширина под планкой не видна, взята примерно
+PRONG_L = 2.0       # штырьки на зубцах, упираются в пластину и отжимают планку
+BODY_PIN = 1.0      # выступ на корпусе напротив них, отжимает корпус от пластины
+
+TX_Y = CLIP_PRESS / 2   # закрытый передатчик с прищепкой идёт по центру прохода Ø27
 
 # ---------- бокс: снято с рисунка ----------
 BOX_W = 56.0        # 195 пикселей
@@ -66,7 +80,10 @@ TOP_PLATE = 6.0     # толщина верхней плиты
 SPIGOT_D = 25.2     # хвостовик ручки
 SPIGOT_L = 20.0     # длинный, чтобы ручка не качалась
 BOT_PLATE = 6.0
-PEDESTAL_Z = 34.0   # дно колодца: верх передатчика на 8 мм выше бокса, за него можно взять пальцами
+PEDESTAL_Z = 43.0   # дно колодца: верх передатчика на 9–12 мм выше бокса, за него берутся и сжимают прищепку
+BLADE_T = 2.0       # пластина, на которую садится прищепка
+BLADE_H = 15.0      # заходит за штырьки, но не доходит до проушины
+JAW_ROOM = 0.5      # добавка к глубине колодца: зубцы раскрываются на пластине
 
 
 def rrect(w, h, r):
@@ -186,15 +203,30 @@ def text_lines():
     return full, solid
 
 
+def well_half():
+    return TX_W / 2 + TX_SIDE + TX_GAP, (TX_T + CLIP_PRESS) / 2 + TX_GAP + JAW_ROOM
+
+
+def blade_y():
+    """Лицо и спина пластины: лицо за спинкой передатчика на высоту выступа корпуса."""
+    y1 = TX_Y - TX_T / 2 - BODY_PIN
+    return y1 - BLADE_T, y1
+
+
 def blade():
-    """Пластина, на которую садится прищепка: с зазором передатчик иначе болтался бы и стучал в запись."""
-    return Manifold.cube([15, 3.0, 20], True).translate([0, TX_Y - TX_T / 2 - 1.6, PEDESTAL_Z + 10])
+    """Пластина на всю ширину колодца: с запасом передатчик иначе болтался бы и стучал в запись.
+    Верх скошен со стороны прищепки, чтобы зубцы находили пластину на ощупь."""
+    x = well_half()[0] + 0.5
+    y0, y1 = blade_y()
+    z0, z1 = PEDESTAL_Z - 0.5, PEDESTAL_Z + BLADE_H
+    base = Manifold.cube([2 * x, y1 - y0, z1 - 2.5 - z0]).translate([-x, y0, z0])
+    tip = Manifold.cube([2 * x, 0.8, 0.01]).translate([-x, y1 - 0.8, z1 - 0.01])
+    return Manifold.batch_hull([base, tip])
 
 
 def well():
     """Колодец под передатчик с зазором TX_GAP со всех сторон, сверху воронка к посадке головы."""
-    x = TX_W / 2 + TX_SIDE + TX_GAP
-    y = (TX_T + CLIP_T) / 2 + TX_GAP
+    x, y = well_half()
     z0, z1, z2 = PEDESTAL_Z, BOX_H - TOP_PLATE - 16, BOX_H - TOP_PLATE - 4
     low = Manifold.cube([2 * x, 2 * y, z1 - z0]).translate([-x, -y, z0])
     base = Manifold.cube([2 * x, 2 * y, 0.2]).translate([-x, -y, z1 - 0.2])
@@ -293,16 +325,36 @@ def handle():
     return b + spig + Manifold.batch_boolean(lugs, OpType.Add)
 
 
-def transmitter():
-    """Передатчик для проверки посадки: низ на подставке, лицо к +Y, прищепка к -Y."""
-    body_ = rounded_box(TX_W, TX_T, TX_L, 2.2)
-    grille = rounded_box(TX_W - 2.4, TX_T - 2.4, 3.0, 1.0).translate([0, 0, TX_L - 2.2])
-    btn = rounded_box(1.4, 3.6, 9.0, 0.5).translate([TX_W / 2 + 0.2, 0, TX_L - 18])
-    sld = rounded_box(1.2, 3.0, 6.0, 0.4).translate([TX_W / 2 + 0.1, 0, TX_L - 30])
-    arm = rounded_box(CLIP_W, 1.8, CLIP_L, 0.7).translate([0, -TX_T / 2 - CLIP_T + 0.9, 8.0])
-    pivot = Manifold.cube([CLIP_W - 2, CLIP_T - 1.5, 7], True).translate([0, -TX_T / 2 - (CLIP_T - 1.5) / 2 + 0.4, 8 + CLIP_L - 14])
-    at = [0, TX_Y, PEDESTAL_Z + TX_GAP]
-    return (body_ + btn + sld).translate(at), grille.translate(at), (arm + pivot).translate(at)
+def clip_arm(open_deg=0.0):
+    """Планка прищепки в координатах передатчика: зажим вверху, зубцы внизу. open_deg раскрывает зубцы вокруг оси."""
+    z_press, z_tip = TX_L - CLIP_TOP, TX_L - CLIP_TOP - CLIP_L
+    y_press, y_tip = -TX_T / 2 - CLIP_PRESS, -TX_T / 2 - CLIP_TIP
+    pts = [[y_tip, z_tip], [y_press, z_press], [y_press + CLIP_PLATE, z_press], [y_tip + CLIP_PLATE, z_tip]]
+    arm = CrossSection([pts], FillRule.EvenOdd).extrude(CLIP_W).rotate([90, 0, 90]).translate([-CLIP_W / 2, 0, 0])
+    yp, zp = -TX_T / 2 - PIVOT_BACK, TX_L - PIVOT_FROM_TOP
+    return arm.translate([0, -yp, -zp]).rotate([-open_deg, 0, 0]).translate([0, yp, zp])
+
+
+def seated_open():
+    """На сколько раскрыта прищепка на пластине: штырьки упёрлись в спину пластины, худший случай."""
+    y_inner = -TX_T / 2 - CLIP_TIP + CLIP_PLATE     # внутренняя грань планки у зубцов, закрыта
+    need = (TX_Y + y_inner) - (blade_y()[0] - PRONG_L)
+    return math.degrees(math.atan(need / (TX_L - PIVOT_FROM_TOP - (TX_L - CLIP_TOP - CLIP_L))))
+
+
+def transmitter(open_deg=None, dz=0.0):
+    """Передатчик для проверки посадки: лицо к +Y, прищепка к -Y, сверху торец с микрофоном.
+    Кнопки и ось сняты с фото. Штырьки в модели не показаны, они учтены в раскрытии прищепки."""
+    if open_deg is None:
+        open_deg = seated_open()
+    body_ = rounded_box(TX_W, TX_T, TX_L, TX_R)
+    grille = rounded_box(TX_W - 2.4, TX_T - 2.4, 3.0, 1.0).translate([0, 0, TX_L - 3.0])
+    btn = rounded_box(2 * TX_SIDE + 2, 5.0, 6.5, 0.5).translate([TX_W / 2 - 1, 0.8, TX_L - 12.5])
+    sld = rounded_box(2 * TX_SIDE + 2, 5.0, 8.0, 0.5).translate([TX_W / 2 - 1, 0.8, TX_L - 25.0])
+    ear = Manifold.cube([EAR_W, EAR_D + 0.4, EAR_L]).translate([-EAR_W / 2, -TX_T / 2 - EAR_D, TX_L - PIVOT_FROM_TOP - EAR_L / 2])
+    clip = clip_arm(open_deg) + ear
+    at = [0, TX_Y, PEDESTAL_Z + TX_GAP + dz]
+    return (body_ + btn + sld).translate(at), grille.translate(at), clip.translate(at)
 
 
 def build(kind='taper'):
@@ -325,6 +377,21 @@ if __name__ == '__main__':
         print(n, 'пересечение', round((a ^ b_).volume(), 3))
     # запас считаем без пластины: на неё прищепка и должна садиться
     walls = body() - well() - top_socket()
+    print('раскрытие прищепки на пластине, градусов', round(seated_open(), 1))
     print('зазор передатчик/стенки', round(tx.min_gap(walls, 5.0), 2))
     print('зазор передатчик/голова', round(tx.min_gap(p['head'], 5.0), 2))
+    print('высота над боксом', round(PEDESTAL_Z + TX_GAP + TX_L - BOX_H, 1), 'при настоящей длине 47:', round(PEDESTAL_Z + TX_GAP + 47 - BOX_H, 1))
+    # прогон сверху до посадки: закрытый передатчик до пластины, ниже прищепка сжата
+    tip_seated = PEDESTAL_Z + TX_GAP + TX_L - CLIP_TOP - CLIP_L
+    start = PEDESTAL_Z + BLADE_H - tip_seated
+    full = p['box']
+    worst = 99.0
+    for dz in range(70, -1, -1):
+        parts = transmitter(0.0 if dz > start else None, float(dz))
+        t = parts[0] + parts[1] + parts[2]
+        v = (t ^ full).volume()
+        if v > 0.001:
+            print('  застревает при подъёме', dz, 'объём', round(v, 2))
+        worst = min(worst, t.min_gap(walls, 5.0))
+    print('прогон: наименьший зазор к стенкам', round(worst, 2))
     print('вся длина', round(p['head'].bounding_box()[5] - p['handle'].bounding_box()[2], 1))
