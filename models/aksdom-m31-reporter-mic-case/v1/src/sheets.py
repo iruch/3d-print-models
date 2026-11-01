@@ -4,7 +4,7 @@
 # ///
 """Листы эскиза кейса-микрофона: форма, размеры, посадка, варианты цветов. Рендер через VTK, подписи шрифтом Segoe UI (Windows).
 
-uv run sheets.py form sizes fit colors                -> все листы в ../img
+uv run sheets.py form sizes fit bayonet colors        -> все листы в ../img
 uv run sheets.py colors --top слово --bottom слово --out папка   -> другая надпись, картинки в другую папку
 Без uv: pip install numpy manifold3d matplotlib fonttools pyvista pillow, дальше python вместо uv run.
 """
@@ -378,7 +378,7 @@ def sheet_sizes(out, kind='taper'):
     callout(dr, (py(D.TX_Y + 3), pz(70)), (1310, 380), 'Передатчик вставляется сверху в колодец с запасом 1 мм со всех сторон. Верх торчит из бокса на 9–12 мм, за него берутся и сжимают прищепку.', 330, ft)
     callout(dr, (py(sum(D.blade_y()) / 2), pz(D.PEDESTAL_Z + 6)), (1310, 540), 'Оранжевая пластина: на неё садится родная прищепка, чтобы передатчик не стучал.', 330, ft)
     callout(dr, (py(3), pz(D.PEDESTAL_Z - 6)), (1310, 640), 'Дно колодца поднято под длину передатчика.', 330, ft)
-    callout(dr, (py(8), pz(10)), (1310, 730), 'Ручка: тоже три лапки и щелчок. Хвостовик Ø25 × 20 мм глубоко в боксе держит рычаг. Пандус под лапками и язычок щелчка ещё не нарисованы.', 330, ft)
+    callout(dr, (py(8), pz(10)), (1310, 730), 'Ручка: тоже три лапки и щелчок. Хвостовик Ø25 × 20 мм глубоко в боксе держит рычаг.', 330, ft)
 
     bx = 1690
     dr.text((bx, 190), 'Надпись', font=font(32, True), fill=ACC)
@@ -479,6 +479,33 @@ def sheet_fit(out, kind='taper'):
     print('лист посадка', flush=True)
 
 
+def sheet_bayonet(out, kind='taper'):
+    """Сечения байонетов по высоте: лапки в открытом и закрытом положении, язычок и зуб щелчка."""
+    p = get(kind)
+    S = 11.5
+    BOX, PART = '#CBD5DE', '#3F4650'
+    PW, PH = 520, 520
+    g = lambda x, y: (PW / 2 + x * S, PH / 2 - y * S)
+    W, H = 2100, 1500
+    sh = Image.new('RGB', (W, H), 'white')
+    dr = ImageDraw.Draw(sh)
+    dr.text((60, 36), 'Байонеты', font=font(54, True), fill=INK)
+    dr.text((60, 106), f'Точные сечения модели, вид сверху. Поворот на {D.TURN:.0f}° до упора, щелчок дают язычок и зуб. Голова закрывается по часовой сверху, ручка по часовой снизу.', font=font(26), fill=MUTED)
+    head_open, handle_open = D.turned(p['head'], D.TOP_SENSE, D.TURN), D.turned(p['handle'], D.BOT_SENSE, D.TURN)
+    rows = [('Голова', p['box'], ((head_open, 74.0, 'лапки в вырезах: открыто'), (p['head'], 74.0, 'лапки под плитой: закрыто, дальше упор'), (p['head'], 78.0, 'выше: язычок в плите, зуб в канавке юбки'))),
+            ('Ручка', p['box'], ((handle_open, 8.9, 'лапки в вырезах: открыто'), (p['handle'], 8.9, 'лапки над плитой: закрыто, дальше упор'), (p['handle'], 17.5, 'выше: язычок на хвостовике, зуб в канавке')))]
+    y = 170
+    for title, bx, cells in rows:
+        dr.text((60, y), title, font=font(34, True), fill=ACC)
+        for i, (m, z, cap) in enumerate(cells):
+            x = 60 + i * 680
+            sh.paste(cut_panel([(bx.slice(z), BOX), (m.slice(z), PART)], g, (PW, PH)), (x, y + 50))
+            dr.text((x, y + 50 + PH + 6), cap, font=font(24), fill=INK)
+        y += 50 + PH + 60
+    sh.save(out / 'design-bayonet.png')
+    print('лист байонеты', flush=True)
+
+
 K, Wh, Yl, Bl, Rd, Tl, Pa = 'black', 'white', 'yellow', 'blue', 'red', 'teal', 'pastel'
 COMBOS = [
     ('Белый бокс', [(K, Wh, K, Rd), (K, Wh, K, Bl), (Wh, Wh, Yl, Yl), (Tl, Wh, Tl, Tl), (Rd, Wh, Rd, Rd), (Bl, Wh, Bl, Bl)]),
@@ -530,7 +557,7 @@ def sheet_colors(rows, first, path, title):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('sheets', nargs='+', choices=['form', 'sizes', 'fit', 'colors'])
+    ap.add_argument('sheets', nargs='+', choices=['form', 'sizes', 'fit', 'bayonet', 'colors'])
     ap.add_argument('--top', default=D.TEXT[0])
     ap.add_argument('--bottom', default=D.TEXT[1])
     ap.add_argument('--out', default=str(HERE.parent / 'img'))
@@ -544,6 +571,8 @@ if __name__ == '__main__':
         sheet_sizes(out)
     if 'fit' in args.sheets:
         sheet_fit(out)
+    if 'bayonet' in args.sheets:
+        sheet_bayonet(out)
     if 'colors' in args.sheets:
         sheet_colors(COMBOS[:3], 1, out / 'colors-1.png', 'Цвета, часть 1')
         sheet_colors(COMBOS[3:6], 19, out / 'colors-2.png', 'Цвета, часть 2')
