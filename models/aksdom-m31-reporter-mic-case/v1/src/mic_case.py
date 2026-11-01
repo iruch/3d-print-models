@@ -7,11 +7,15 @@
 Все размеры в мм. X — вправо, Y — от зрителя (перед = -Y), Z — вверх. Z = 0 — низ бокса.
 Рисунок бокса: ref/sketch.png, масштаб шар Ø52 = 180 пикселей, то есть 0,289 мм на пиксель.
 
-uv run mic_case.py      -> проверка: габариты деталей и пересечения в сборке
+uv run mic_case.py      -> проверка: габариты деталей, пересечения в сборке, байонеты, нависания
+uv run mic_case.py --print [--top слово --bottom слово --out файл.3mf]   -> три детали на столе для печати
 Без uv: pip install numpy manifold3d matplotlib fonttools, дальше python вместо uv run.
 """
+import argparse
 import math
 import zipfile
+from pathlib import Path
+
 import numpy as np
 import manifold3d as m3
 from manifold3d import Manifold, CrossSection, FillRule, JoinType, OpType
@@ -609,7 +613,35 @@ def write_3mf(path, parts, title):
         z.writestr('3D/3dmodel.model', model_xml)
 
 
+def plate():
+    """Три детали на столе в положении печати: бокс вверх дном, голова юбкой вниз, ручка хвостовиком вниз."""
+    def put(m, x, y):
+        b = m.bounding_box()
+        return m.translate([x - (b[0] + b[3]) / 2, y - (b[1] + b[4]) / 2, -b[2]])
+    p = build()
+    return [('box', put(p['box'].rotate([180, 0, 0]), 110, 160), None),
+            ('head', put(p['head'], 75, 70), None),
+            ('handle', put(p['handle'].rotate([180, 0, 0]), 145, 70), None)]
+
+
 if __name__ == '__main__':
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--print', dest='to_print', action='store_true', help='записать детали в 3mf и выйти')
+    ap.add_argument('--top', default=TEXT[0])
+    ap.add_argument('--bottom', default=TEXT[1])
+    ap.add_argument('--out')
+    args = ap.parse_args()
+    TEXT = (args.top, args.bottom)
+    if args.to_print:
+        name = 'aksdom-m31-reporter-mic-case-v1'
+        out = Path(args.out) if args.out else Path(__file__).resolve().parents[1] / f'{name}.3mf'
+        parts = plate()
+        write_3mf(out, parts, name)
+        for n, m, _ in parts:
+            b = m.bounding_box()
+            area = m.surface_area()
+            print(f'{n}: {b[3] - b[0]:.1f} × {b[4] - b[1]:.1f} × {b[5] - b[2]:.1f}, X {b[0]:.0f}–{b[3]:.0f}, Y {b[1]:.0f}–{b[4]:.0f}, объём {m.volume() / 1000:.1f} см³, поверхность {area / 100:.0f} см², кусков {len(m.decompose())}, {m.status().name}')
+        raise SystemExit
     p = build()
     tx = p['tx_body'] + p['tx_grille'] + p['tx_clip']
     for k in ('box', 'head', 'handle', 'letters'):
