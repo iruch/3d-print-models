@@ -26,7 +26,7 @@ LUG_HS = (3.6, 3.8, 4.0)        # кольца головы: высота лап
 LUG_GAPS = (0.1, 0.2, 0.3)      # ручка: зазор лапки до конуса плиты
 TOP_HALF = 22.0                 # верх колодца: половина стороны
 WELL_WALL = 3.2                 # стенка вокруг колодца снизу
-Z_LOW = M.PEDESTAL_Z - 9.0      # кусок бокса начинается под двускатным дном колодца, ниже уже гнездо ручки
+Z_LOW = M.SPIGOT_L + 1.0        # кусок бокса начинается там, где кончается гнездо ручки: дно колодца над ним
 Z_STEP = M.BOX_H - 22.0         # выше этой высоты он широкий, под гнездо головы
 SOCKET_H = M.SPIGOT_L + 4.0     # кусок бокса с гнездом ручки
 SOCKET_W = 38.0
@@ -42,6 +42,9 @@ def well_outer():
     """Узкий низ вокруг колодца и широкий верх вокруг гнезда, между ними скос: вверх дном он печатается без поддержек."""
     wx, wy = M.well_half()
     lx, ly = wx + WELL_WALL, wy + WELL_WALL
+    if Z_STEP - (TOP_HALF - min(lx, ly)) < Z_LOW + 2.0:
+        # бокс низкий, узкой части не остаётся: кусок во всю ширину бокса
+        return block(TOP_HALF, TOP_HALF, 3.0, Z_LOW, M.BOX_H)
     low = block(lx, ly, 3.0, Z_LOW, Z_STEP - (TOP_HALF - min(lx, ly)))
     top = block(TOP_HALF, TOP_HALF, 3.0, Z_STEP, M.BOX_H)
     neck = Manifold.batch_hull([block(lx, ly, 3.0, Z_STEP - (TOP_HALF - min(lx, ly)) - 0.01, Z_STEP - (TOP_HALF - min(lx, ly))), block(TOP_HALF, TOP_HALF, 3.0, Z_STEP, Z_STEP + 0.01)])
