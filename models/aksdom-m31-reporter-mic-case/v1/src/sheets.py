@@ -2,9 +2,9 @@
 # requires-python = ">=3.11"
 # dependencies = ["numpy", "manifold3d", "matplotlib", "fonttools", "pyvista", "pillow"]
 # ///
-"""Листы эскиза кейса-микрофона: форма, размеры, посадка, варианты цветов. Рендер через VTK, подписи шрифтом Segoe UI (Windows).
+"""Листы эскиза кейса-микрофона: размеры, посадка, байонеты, шар, варианты цветов. Рендер через VTK, подписи шрифтом Segoe UI (Windows).
 
-uv run sheets.py form sizes fit bayonet ball colors   -> все листы в ../img
+uv run sheets.py sizes fit bayonet ball colors   -> все листы в ../img
 uv run sheets.py colors --top слово --bottom слово --out папка   -> другая надпись, картинки в другую папку
 Без uv: pip install numpy manifold3d matplotlib fonttools pyvista pillow, дальше python вместо uv run.
 """
@@ -20,7 +20,6 @@ import lettering
 import mic_case as D
 
 HERE = Path(__file__).parent
-SKETCH = HERE.parent / 'ref' / 'sketch.png'
 INK = '#22262B'
 MUTED = '#6B7280'
 ACC = '#C2410C'
@@ -145,15 +144,15 @@ def cam_orbit(foc, dist, az, el, **kw):
     return dict(pos=pos, foc=foc, **kw)
 
 
-def get(kind):
-    if kind not in CACHE:
-        CACHE[kind] = D.build(kind)
-    return CACHE[kind]
+def get():
+    if 'p' not in CACHE:
+        CACHE['p'] = D.build()
+    return CACHE['p']
 
 
-def items(kind, sc, tx=False):
+def items(sc, tx=False):
     out = []
-    for k, m in get(kind).items():
+    for k, m in get().items():
         is_tx = k.startswith('tx')
         if is_tx and not tx:
             continue
@@ -199,81 +198,11 @@ def block(draw, xy, text, fnt, width, fill=INK, gap=8):
     return y
 
 
-def poly_area(p):
-    return abs(np.sum(p[:, 0] * np.roll(p[:, 1], -1) - np.roll(p[:, 0], -1) * p[:, 1]))
-
-
-def overlay_image(scale=3):
-    """Контур модели красным поверх рисунка в одном масштабе."""
-    im = Image.open(SKETCH).convert('RGBA')
-    bg = Image.new('RGBA', im.size, (255, 255, 255, 255))
-    bg.alpha_composite(im)
-    bg = bg.convert('RGB').resize((im.width * scale, im.height * scale), Image.BICUBIC)
-    dr = ImageDraw.Draw(bg)
-    cx, by = 229.5, 495.5
-    px = lambda x, z: ((cx + x / D.K) * scale, (by - z / D.K) * scale)
-    col = (214, 40, 40)
-
-    def stroke(polys, width=2):
-        for p in polys:
-            p = np.asarray(p)
-            dr.line([px(x, z) for x, z in np.vstack([p, p[:1]])], fill=col, width=width)
-    parts = get('flat')
-    visible = [parts['box'], parts['head'].trim_by_plane([0, 0, 1], D.BOX_H), parts['handle'].trim_by_plane([0, 0, -1], 0.0)]
-    for m in visible:
-        polys = [np.asarray(p) for p in m.rotate([-90, 0, 0]).project().to_polygons()]
-        big = max(poly_area(q) for q in polys)
-        stroke([p for p in polys if poly_area(p) > 0.1 * big])
-    stroke(D.rrect(D.BOX_W, D.BOX_H, D.BOX_R).translate([0, D.BOX_H / 2]).to_polygons())
-    stroke(D.rrect(D.PANEL_W, D.PANEL_H, D.PANEL_R).translate([0, D.PANEL_Z]).to_polygons())
-    return bg
-
-
 SCH = dict(head='black', box='white', handle='black', letters='red')
 
 
-def hero(kind, sc=SCH, size=(600, 860)):
-    return render(items(kind, sc), cam_orbit((0, 0, 27), 1050, 22, 9, fov=12.6), size=size)
-
-
-def plan_view(kind):
-    """Вид сверху контуром: так глубина крыльев читается лучше, чем на рендере."""
-    S = 5.0
-    W, H = 460, 240
-    im = Image.new('RGB', (W, H), 'white')
-    dr = ImageDraw.Draw(im)
-    polys = [np.asarray(q) for q in get(kind)['box'].project().to_polygons()]
-    big = max(polys, key=len)
-    pts = [(W / 2 + p[0] * S, H / 2 - p[1] * S) for p in big]
-    dr.polygon(pts, fill='#E7EAEE', outline=INK)
-    dr.line(pts + pts[:1], fill=INK, width=2)
-    r = D.NECK_D / 2 * S
-    dr.ellipse([W / 2 - r, H / 2 - r, W / 2 + r, H / 2 + r], outline='#9AA0A6', width=2)
-    return im
-
-
-def sheet_form(out):
-    W, H = 2100, 1640
-    sh = Image.new('RGB', (W, H), 'white')
-    dr = ImageDraw.Draw(sh)
-    dr.text((60, 36), 'Бокс по рисунку', font=font(54, True), fill=INK)
-    dr.text((60, 106), 'Спереди модель повторяет рисунок. Глубины на рисунке нет: разобраны три варианта крыльев, выбран третий.', font=font(27), fill=MUTED)
-    ov = overlay_image(3)
-    ov = ov.crop((150, 40, ov.width - 60, ov.height - 20))
-    dr.text((60, 170), 'Сверка с рисунком', font=font(32, True), fill=INK)
-    block(dr, (60, 214), 'Красный контур модели поверх рисунка, масштаб один. Шар стоит по оси: на рисунке он сдвинут на 2 мм влево.', font(24), 540, fill=MUTED, gap=5)
-    paste_center(sh, ov, (60, 330, 620, 1600))
-    cols = [(680, 'flat', '1. Тонкие, 12 мм', 'Лёгкий вид, но кончики тонкие. Спереди как на рисунке, сбоку это плоские пластины.'),
-            (1150, 'full', '2. Почти на всю глубину, 37 мм', 'Самые прочные кончики, форма проще всего.'),
-            (1620, 'taper', '3. Сходятся к кончикам', 'Выбрано. Самая скульптурная форма. Кончик 4 мм, его можно сколоть при падении.')]
-    for cx, kind, title, txt in cols:
-        block(dr, (cx, 170), title, font(28, True), 440, fill=ACC if kind == 'taper' else INK, gap=4)
-        paste_center(sh, trim_white(hero(kind)), (cx, 240, cx + 440, 1090))
-        dr.text((cx, 1110), 'вид сверху', font=font(23), fill=MUTED)
-        paste_center(sh, plan_view(kind), (cx, 1140, cx + 440, 1380))
-        block(dr, (cx, 1396), txt, font(24), 440, gap=6)
-    sh.save(out / 'design-form.png')
-    print('лист форма', flush=True)
+def hero(sc=SCH, size=(600, 860)):
+    return render(items(sc), cam_orbit((0, 0, 27), 1050, 22, 9, fov=12.6), size=size)
 
 
 def dim_v(dr, x, y0, y1, label, side=1, ext0=None, ext1=None, fnt=None):
@@ -306,10 +235,10 @@ def split_caps(pd):
     return pd.extract_cells(np.where(mask)[0]).extract_surface(), pd.extract_cells(np.where(~mask)[0]).extract_surface()
 
 
-def section_items(kind):
+def section_items():
     mp = dict(head='black', box='cut_box', handle='flat_yellow', letters='red')
     out = []
-    for k, m in get(kind).items():
+    for k, m in get().items():
         cut = m.trim_by_plane([-1, 0, 0], 0.0)
         if cut.is_empty():
             continue
@@ -336,55 +265,54 @@ def callout(dr, target, xy, text, width, fnt=None):
         dr.text((x, y + i * (fnt.size + 5)), ln, font=fnt, fill=INK)
 
 
-def sheet_sizes(out, kind='taper'):
+def sheet_sizes(out):
     W, H = 2100, 1520
     sh = Image.new('RGB', (W, H), 'white')
     dr = ImageDraw.Draw(sh)
     dr.text((60, 36), 'Размеры, стыки и надпись', font=font(54, True), fill=INK)
-    dr.text((60, 106), 'Модель ещё не печаталась. Передатчик снят с фото рядом с линейкой: в расчёте 50,5 × 18 × 12,2 мм, с прищепкой 19 мм.', font=font(27), fill=MUTED)
+    dr.text((60, 106), 'Передатчик снят с фото рядом с линейкой: в расчёте 50,5 × 18 × 12,2 мм, с прищепкой 19 мм.', font=font(27), fill=MUTED)
     top = D.BALL_CZ + D.BALL_D / 2
     zc = (top - D.HANDLE_L) / 2
     IW, IH = 560, 1250
-    scale = 122.0
+    scale = (top + D.HANDLE_L) * 0.58
     k = IH / (2 * scale)
-    im = render(items(kind, SCH), dict(pos=(0, -800, zc), foc=(0, 0, zc), scale=scale), size=(IW, IH), parallel=True)
+    im = render(items(SCH), dict(pos=(0, -800, zc), foc=(0, 0, zc), scale=scale), size=(IW, IH), parallel=True)
     ox, oy = 90, 190
     sh.paste(im, (ox, oy))
     px = lambda x: ox + IW / 2 + x * k
     pz = lambda z: oy + IH / 2 - (z - zc) * k
     total = top + D.HANDLE_L
-    dim_h(dr, pz(top) - 22, px(-D.BALL_D / 2), px(D.BALL_D / 2), 'Ø52')
-    dim_h(dr, pz(-5), px(-41.0), px(41.0), '')
-    dr.text((px(17), pz(-5) + 6), '82', font=font(25), fill=INK)
+    dim_h(dr, pz(top) - 22, px(-D.BALL_D / 2), px(D.BALL_D / 2), f'Ø{D.BALL_D:.0f}')
     dim_v(dr, 650, pz(top), pz(-D.HANDLE_L), f'{total:.0f}', side=1, ext0=px(10), ext1=px(10))
-    dim_v(dr, 76, pz(D.BOX_H), pz(0), '82', side=-1, ext0=px(-41.0), ext1=px(-41.0))
-    dim_v(dr, px(-30), pz(0), pz(-D.HANDLE_L), '78', side=-1, ext1=px(-14))
+    dim_v(dr, px(-D.BOX_W / 2) - 40, pz(D.BOX_H), pz(0), f'{D.BOX_H:.0f}', side=-1, ext0=px(-D.BOX_W / 2), ext1=px(-D.BOX_W / 2))
+    dim_v(dr, px(-30), pz(0), pz(-D.HANDLE_L), f'{D.HANDLE_L:.0f}', side=-1, ext1=px(-14))
     dr.line([(px(-14.3), pz(-20)), (px(14.3), pz(-20))], fill='#FFFFFF', width=2)
     dr.text((px(17), pz(-20) - 16), 'Ø30', font=font(25), fill=INK)
-    dr.line([(px(-12.6), pz(-70)), (px(12.6), pz(-70))], fill='#FFFFFF', width=2)
-    dr.text((px(15), pz(-70) - 16), 'Ø25', font=font(25), fill=INK)
-    dim_h(dr, pz(77), px(-D.BOX_W / 2), px(D.BOX_W / 2), '')
-    dr.text((px(0) - 14, pz(77) + 5), '56', font=font(25), fill=INK)
+    ze = -(D.HANDLE_L - 9)
+    dr.line([(px(-12.6), pz(ze)), (px(12.6), pz(ze))], fill='#FFFFFF', width=2)
+    dr.text((px(15), pz(ze) - 16), 'Ø25', font=font(25), fill=INK)
+    dim_h(dr, pz(D.BOX_H - 5), px(-D.BOX_W / 2), px(D.BOX_W / 2), '')
+    dr.text((px(0) - 14, pz(D.BOX_H - 5) + 5), f'{D.BOX_W:.0f}', font=font(25), fill=INK)
 
     SW, SH = 560, 1250
-    im = render(section_items(kind), dict(pos=(800, 0, zc), foc=(0, 0, zc), scale=scale), size=(SW, SH), parallel=True, section=True)
+    im = render(section_items(), dict(pos=(800, 0, zc), foc=(0, 0, zc), scale=scale), size=(SW, SH), parallel=True, section=True)
     ox2 = 730
     sh.paste(im, (ox2, oy))
     py = lambda y: ox2 + SW / 2 + y * k
-    dim_h(dr, pz(0) + 30, py(-D.BOX_D / 2), py(D.BOX_D / 2), 'глубина 44', side=1)
+    dim_h(dr, pz(0) + 30, py(-D.BOX_D / 2), py(D.BOX_D / 2), f'глубина {D.BOX_D:.0f}', side=1)
     ft = font(22)
-    callout(dr, (py(1), pz(107)), (1310, 190), 'Шар пустой, отверстия сквозные, звук доходит до решётки передатчика.', 330, ft)
-    callout(dr, (py(-16), pz(75)), (1310, 300), 'Голова: три лапки, поворот, щелчок.', 330, ft)
-    callout(dr, (py(D.TX_Y + 3), pz(70)), (1310, 380), 'Передатчик вставляется сверху в колодец с запасом 1 мм со всех сторон. Верх торчит из бокса на 9–12 мм, за него берутся и сжимают прищепку.', 330, ft)
+    callout(dr, (py(1), pz(D.BALL_CZ)), (1310, 190), 'Шар пустой, отверстия сквозные, звук доходит до решётки передатчика.', 330, ft)
+    callout(dr, (py(-16), pz(D.BOX_H - 7)), (1310, 300), 'Голова: три лапки, поворот, щелчок.', 330, ft)
+    callout(dr, (py(D.TX_Y + 3), pz(D.BOX_H - 12)), (1310, 380), 'Передатчик вставляется сверху в колодец с запасом 1 мм со всех сторон. Верх торчит из бокса на 9–12 мм, за него берутся и сжимают прищепку.', 330, ft)
     callout(dr, (py(sum(D.blade_y()) / 2), pz(D.PEDESTAL_Z + 6)), (1310, 540), 'Оранжевая пластина: на неё садится родная прищепка, чтобы передатчик не стучал.', 330, ft)
-    callout(dr, (py(3), pz(D.PEDESTAL_Z - 6)), (1310, 640), 'Дно колодца поднято под длину передатчика.', 330, ft)
+    callout(dr, (py(3), pz(D.PEDESTAL_Z - 6)), (1310, 640), 'Дно колодца опущено как можно ниже, сразу над гнездом ручки.', 330, ft)
     callout(dr, (py(8), pz(10)), (1310, 730), 'Ручка: тоже три лапки и щелчок. Хвостовик Ø25 × 20 мм глубоко в боксе держит рычаг.', 330, ft)
 
     bx = 1690
     dr.text((bx, 190), 'Надпись', font=font(32, True), fill=ACC)
-    p = get(kind)
+    p = get()
     its = [(to_pv(p['box']), 'white', {}), (to_pv(p['letters'].translate([0, -16, 0])), 'red', dict(smooth_shading=False, split_sharp_edges=False))]
-    im = render(its, cam_orbit((0, -8, 45), 620, 30, 8, fov=5.6), size=(390, 390))
+    im = render(its, cam_orbit((0, -8, D.PANEL_Z), 620, 30, 8, fov=5.6), size=(390, 390))
     paste_center(sh, im, (bx - 10, 236, bx + 380, 626))
     n, th = lettering.stats(*D.TEXT)
     thin = f'{th:.1f}'.replace('.', ',')
@@ -419,9 +347,9 @@ def mm(v):
     return f'{v:.1f}'.replace('.', ',')
 
 
-def sheet_fit(out, kind='taper'):
+def sheet_fit(out):
     """Точные сечения модели: как передатчик стоит в колодце и какие остаются зазоры."""
-    p = get(kind)
+    p = get()
     S = 12.5
     tx = p['tx_body'] + p['tx_grille']
     BOX, HEAD, TX, CLIP, BL = '#CBD5DE', '#8A8F98', '#22262B', '#3F4650', '#E0531A'
@@ -436,7 +364,7 @@ def sheet_fit(out, kind='taper'):
         return m.rotate([0, 90, 0]).slice(0.0)
 
     # продольный разрез: координаты сечения (z, y), лицо передатчика справа
-    zc, IW, IH = 70.0, 600, 760
+    zc, IW, IH = D.PEDESTAL_Z + 27.0, 600, 760
     f = lambda z, y: (IW / 2 + y * S, IH / 2 - (z - zc) * S)
     im = cut_panel([(rot(p['box']), BOX), (rot(p['head']), HEAD), (rot(D.blade()), BL), (rot(p['tx_clip']), CLIP), (rot(tx), TX)], f, (IW, IH))
     x1 = 60
@@ -460,7 +388,7 @@ def sheet_fit(out, kind='taper'):
     block(dr, (x2, top + 44 + PH + 14), t, font(24), PW, gap=6)
 
     # сечение в горле головы
-    z_neck = 77.0
+    z_neck = D.BOX_H - 5.0
     im = cut_panel([(p['box'].slice(z_neck), BOX), (p['head'].slice(z_neck), HEAD), (p['tx_clip'].slice(z_neck), CLIP), (tx.slice(z_neck), TX)], g, (PW, PH))
     x3 = 1420
     sh.paste(im, (x3, top + 44))
@@ -479,9 +407,9 @@ def sheet_fit(out, kind='taper'):
     print('лист посадка', flush=True)
 
 
-def sheet_bayonet(out, kind='taper'):
+def sheet_bayonet(out):
     """Сечения байонетов по высоте: лапки в открытом и закрытом положении, язычок и зуб щелчка."""
-    p = get(kind)
+    p = get()
     S = 11.5
     BOX, PART = '#CBD5DE', '#3F4650'
     PW, PH = 520, 520
@@ -492,7 +420,7 @@ def sheet_bayonet(out, kind='taper'):
     dr.text((60, 36), 'Байонеты', font=font(54, True), fill=INK)
     dr.text((60, 106), f'Точные сечения модели, вид сверху. Поворот на {D.TURN:.0f}° до упора, щелчок дают язычок и зуб. Голова закрывается по часовой сверху, ручка по часовой снизу.', font=font(26), fill=MUTED)
     head_open, handle_open = D.turned(p['head'], D.TOP_SENSE, D.TURN), D.turned(p['handle'], D.BOT_SENSE, D.TURN)
-    rows = [('Голова', p['box'], ((head_open, 74.0, 'лапки в вырезах: открыто'), (p['head'], 74.0, 'лапки под плитой: закрыто, дальше упор'), (p['head'], 78.0, 'выше: язычок в плите, зуб в канавке юбки'))),
+    rows = [('Голова', p['box'], ((head_open, D.BOX_H - 8.0, 'лапки в вырезах: открыто'), (p['head'], D.BOX_H - 8.0, 'лапки под плитой: закрыто, дальше упор'), (p['head'], 78.0, 'выше: язычок в плите, зуб в канавке юбки'))),
             ('Ручка', p['box'], ((handle_open, 8.9, 'лапки в вырезах: открыто'), (p['handle'], 8.9, 'лапки над плитой: закрыто, дальше упор'), (p['handle'], 17.5, 'выше: язычок на хвостовике, зуб в канавке')))]
     y = 170
     for title, bx, cells in rows:
@@ -573,7 +501,7 @@ def sheet_colors(rows, first, path, title):
         for c, cc in enumerate(combos):
             cx = 40 + c * (cw + 3)
             sc = dict(head=cc[0], box=cc[1], handle=cc[2], letters=cc[3])
-            im = hero('taper', sc, size=(430, 650))
+            im = hero(sc, size=(430, 650))
             paste_center(sh, trim_white(im), (cx, y0 + 42, cx + cw, y0 + 42 + ch))
             dr.text((cx + 70, y0 + 48 + ch), f'{n}', font=font(28, True), fill=INK)
             swatches(dr, cx + 122, y0 + 54 + ch, cc)
@@ -584,7 +512,7 @@ def sheet_colors(rows, first, path, title):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('sheets', nargs='+', choices=['form', 'sizes', 'fit', 'bayonet', 'ball', 'colors'])
+    ap.add_argument('sheets', nargs='+', choices=['sizes', 'fit', 'bayonet', 'ball', 'colors'])
     ap.add_argument('--top', default=D.TEXT[0])
     ap.add_argument('--bottom', default=D.TEXT[1])
     ap.add_argument('--out', default=str(HERE.parent / 'img'))
@@ -592,8 +520,6 @@ if __name__ == '__main__':
     D.TEXT = (args.top, args.bottom)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    if 'form' in args.sheets:
-        sheet_form(out)
     if 'sizes' in args.sheets:
         sheet_sizes(out)
     if 'fit' in args.sheets:

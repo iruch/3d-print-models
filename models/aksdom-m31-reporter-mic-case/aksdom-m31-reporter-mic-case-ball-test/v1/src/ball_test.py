@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parents[2] / 'aksdom-m31-reporter-mic-case' / 'v1' / 'src'))
+sys.path.insert(0, str(HERE.parents[2] / 'v1' / 'src'))
 import mic_case as M
 
 NAME = 'aksdom-m31-reporter-mic-case-ball-test'
@@ -24,8 +24,8 @@ ROOFS = (60.0, 52.0)        # нависание конуса внутри ша�
 
 def marks(n):
     """Метка варианта: насечки на пояске, одна или две."""
-    cz = M.BALL_CZ
-    return M.union([M.prism([[26.6, -0.6], [28.0, -0.6], [28.0, 0.6], [26.6, 0.6]], cz - 1, cz + 3, 90.0 + i * 8.0) for i in range(n)])
+    cz, R = M.BALL_CZ, M.BALL_D / 2
+    return M.union([M.prism([[R + 0.6, -0.6], [R + 2.0, -0.6], [R + 2.0, 0.6], [R + 0.6, 0.6]], cz - 1, cz + 3, 90.0 + i * 8.0) for i in range(n)])
 
 
 def cap(roof, n):

@@ -3,9 +3,9 @@
 # dependencies = ["numpy", "manifold3d", "matplotlib", "fonttools"]
 # ///
 """Кейс-микрофон: геометрия эскиза. Файла для печати пока нет, модель в разработке.
-Три детали и надпись: шар-голова, бокс с крыльями, ручка. Передатчик Aksdom M31 вставляется сверху.
+Три детали и надпись: шар-голова, бокс, ручка. Передатчик Aksdom M31 вставляется сверху.
 Все размеры в мм. X — вправо, Y — от зрителя (перед = -Y), Z — вверх. Z = 0 — низ бокса.
-Рисунок бокса: ref/sketch.png, масштаб шар Ø52 = 180 пикселей, то есть 0,289 мм на пиксель.
+Фронт бокса и панель взяты с рисунка ref/sketch.png. Крылья с рисунка убраны, бокс и шар уменьшены: размер задаёт передатчик.
 
 uv run mic_case.py      -> проверка: габариты деталей, пересечения в сборке, байонеты, нависания
 uv run mic_case.py --print [--top слово --bottom слово --out файл.3mf]   -> три детали на столе для печати
@@ -22,8 +22,6 @@ from manifold3d import Manifold, CrossSection, FillRule, JoinType, OpType
 import lettering
 
 m3.set_circular_segments(72)
-
-K = 52.0 / 180.0                     # мм на пиксель рисунка
 
 # ---------- надпись: две строки, задаётся параметром ----------
 TEXT = ('be', 'louder!')
@@ -50,22 +48,16 @@ BODY_PIN = 1.0      # выступ на корпусе напротив них, 
 
 TX_Y = CLIP_PRESS / 2   # закрытый передатчик с прищепкой идёт по центру прохода Ø27
 
-# ---------- бокс: снято с рисунка ----------
-BOX_W = 56.0        # 195 пикселей
-BOX_H = 82.0        # 284 пикселя
+# ---------- бокс: фронт с рисунка, высота по передатчику ----------
+BOX_W = 56.0        # меньше нельзя: панель с надписью и так подходит к скруглению рёбер
+BOX_H = 70.0        # ниже нельзя: края пластины под прищепку держатся на стенках воронки, см. blade()
 BOX_R = 8.5         # скругление углов по фронту
 BOX_D = 44.0        # глубина: на рисунке её нет, выбрана под передатчик и посадку головы
 EDGE_R = 3.0        # скругление рёбер по глубине
-PANEL_W, PANEL_H = 47.7, 56.3    # панель под надпись
+PANEL_W, PANEL_H = 47.7, BOX_H - 14.0    # панель под надпись
 PANEL_R = 7.0
-PANEL_Z = 45.4      # центр панели от низа бокса
+PANEL_Z = BOX_H / 2  # центр панели от низа бокса
 PANEL_D = 1.2       # глубина панели, край со скосом 45°
-
-TIP_X = 42.0        # кончик крыла от оси
-APEX_X = 29.3       # самое узкое место крыла на половине высоты
-ARC_R = 76.6        # радиус вогнутой дуги
-EDGE_DIP = 0.0      # на рисунке верх и низ крыла чуть проваливаются, до 0,7 мм у бокса; ровный край ложится на стол, иначе там мост 11 мм
-WING_TIP = 4.0      # толщина кончика крыла
 
 # ---------- надпись на боксе ----------
 LETTER_T = 3.0      # толщина
@@ -73,11 +65,11 @@ POCKET_D = 1.5      # половина в выемке, половина сна�
 POCKET_GAP = 0.15   # зазор выемки на сторону
 
 # ---------- шар и ручка ----------
-BALL_D = 52.0
+BALL_D = 46.0       # меньше рядом с шейкой Ø36 будет некрасиво, передатчик внутри помещается с запасом
 NECK_D, NECK_H = 36.0, 4.3
-BALL_CZ = BOX_H + 25.0
+BALL_CZ = BOX_H + BALL_D / 2 - 1.0
 BALL_ROOF = 52.0    # верх полости шара конус с таким нависанием от вертикали, None — полость сферой; снаружи шар не меняется
-HANDLE_D, HANDLE_END_D, HANDLE_L = 30.0, 25.0, 78.0   # у бокса шире, к низу сужается
+HANDLE_D, HANDLE_END_D, HANDLE_L = 30.0, 25.0, 55.0   # у бокса шире, к низу сужается
 
 # ---------- байонеты: поворот на 45° до упора и щелчок ----------
 # Бокс печатается вверх дном, голова юбкой вниз, ручка хвостовиком вниз. Скосы подобраны под это: поддержки не нужны.
@@ -99,7 +91,7 @@ NOTCH_R = 17.95     # наружный край выреза
 LUG_R = 17.7        # лапка головы
 LUG_A = 14.0        # половина ширины лапки, градусов
 LUG_H = 3.8         # высота лапки от торца юбки: зазор до плиты 0,2 мм, подбирается на пробнике
-SEAT_Z = 79.8       # в боксе тут начинается конус под скос головы
+SEAT_Z = BOX_H - 2.2  # в боксе тут начинается конус под скос головы
 TONGUE_A = 66.0     # корень язычка щелчка, градусов от выреза, свободный конец у следующего выреза
 TONGUE_R = 17.3     # наружный край язычка, дальше прорезь
 SLIT_R = 18.0       # наружный край прорези, спрятан под шейкой головы
@@ -124,7 +116,8 @@ BOT_BUMP_A = 5.0    # зуб отстоит от оси лапки назад н
 BOT_BUMP_R = 13.2   # вершина зуба на хвостовике
 BOT_V_R = 13.35     # дно канавки в отверстии бокса
 
-PEDESTAL_Z = 43.0  # дно колодца: верх передатчика на 9–12 мм выше бокса, за него берутся и сжимают прищепку
+PEDESTAL_Z = 31.0  # дно колодца как можно ниже: под двускатным дном 2 мм до гнезда ручки.
+                   # Верх передатчика выходит из бокса на 9–12 мм, за него берутся и сжимают прищепку
 BLADE_T = 2.0       # пластина, на которую садится прищепка
 BLADE_H = 8.5       # высота пластины над дном по оси, в вырезе; по бокам вырез поднимается под 45°
 JAW_ROOM = 0.5      # добавка к глубине колодца: зубцы раскрываются на пластине
@@ -189,77 +182,6 @@ def body():
             cs = rrect(BOX_W - 2 * inset, BOX_H - 2 * inset, max(BOX_R - inset, 0.5))
             layers.append(cs.extrude(0.01).rotate([90, 0, 0]).translate([0, yy, BOX_H / 2]))
     return Manifold.batch_hull(layers)
-
-
-def wing_profile():
-    """Контур крыльев в плоскости XZ: квадрат с вогнутыми боками, как на рисунке."""
-    cx = APEX_X + ARC_R
-    half = math.sqrt(ARC_R ** 2 - (cx - TIP_X) ** 2)
-    pts = []
-    n = 60
-    a0 = math.asin(half / ARC_R)
-    for i in range(n + 1):
-        a = -a0 + 2 * a0 * i / n
-        pts.append([cx - ARC_R * math.cos(a), BOX_H / 2 + ARC_R * math.sin(a)])
-    m = 24
-    for i in range(1, m):
-        t = i / m
-        pts.append([TIP_X * (1 - 2 * t), BOX_H - EDGE_DIP * math.sin(math.pi * t) ** 0.5])
-    for i in range(n + 1):
-        a = a0 - 2 * a0 * i / n
-        pts.append([-cx + ARC_R * math.cos(a), BOX_H / 2 + ARC_R * math.sin(a)])
-    for i in range(1, m):
-        t = i / m
-        pts.append([-TIP_X * (1 - 2 * t), EDGE_DIP * math.sin(math.pi * t) ** 0.5])
-    cs = CrossSection([pts], FillRule.EvenOdd)
-    return cs.offset(-0.9, JoinType.Round, 8, 24).offset(0.9, JoinType.Round, 8, 24)
-
-
-def arc_cutter(T, f):
-    """Вырез под вогнутую дугу со скруглёнными кромками."""
-    prof = [[0, -T / 2 - 2], [ARC_R + f, -T / 2 - 2], [ARC_R + f, -T / 2]]
-    for i in range(1, 13):
-        a = i / 12 * math.pi / 2
-        prof.append([ARC_R + f - f * math.sin(a), -T / 2 + f - f * math.cos(a)])
-    for i in range(0, 13):
-        a = (12 - i) / 12 * math.pi / 2
-        prof.append([ARC_R + f - f * math.sin(a), T / 2 - f + f * math.cos(a)])
-    prof += [[ARC_R + f, T / 2 + 2], [0, T / 2 + 2]]
-    return CrossSection([prof], FillRule.EvenOdd).revolve(360)
-
-
-def wings(kind):
-    """kind: taper — сходятся к кончикам (выбрано), flat — пластина 12 мм, full — почти на всю глубину."""
-    if kind == 'flat':
-        T, f = 12.0, 2.5
-    elif kind == 'full':
-        T, f = 37.0, 3.0
-    else:
-        T, f = BOX_D - 1.0, 3.0
-    prof = wing_profile().extrude(T).rotate([90, 0, 0]).translate([0, T / 2, 0])
-    blk = rounded_box(2 * TIP_X + 4, T, BOX_H, 2.2)
-    w = prof ^ blk
-    cx = APEX_X + ARC_R
-    for s in (-1, 1):
-        cut = arc_cutter(T, f).rotate([90, 0, 0]).translate([s * cx, 0, BOX_H / 2])
-        w = w - cut
-    if kind == 'taper':
-        # вид сверху: от боковой стенки бокса глубина сходится к кончику
-        x0 = BOX_W / 2 - 2.0
-        hd = BOX_D / 2 - 1.0
-        pts = []
-        n = 24
-        for i in range(n + 1):
-            t = i / n
-            pts.append([x0 + (TIP_X + 1.5 - x0) * t, WING_TIP / 2 + (hd - WING_TIP / 2) * (1 - t) ** 1.6])
-        for p in reversed(pts):
-            pts.append([p[0], -p[1]])
-        right = CrossSection([pts], FillRule.EvenOdd)
-        left = right.mirror([1, 0])
-        core = CrossSection.square([2 * x0 + 0.2, 2 * hd], True)
-        plan = (right + left + core).extrude(BOX_H + 2).translate([0, 0, -1])
-        w = w ^ plan
-    return w
 
 
 def text_lines():
@@ -353,9 +275,9 @@ def bottom_socket():
     return union(void) - union(stops)
 
 
-def box(kind='taper', bumps=True):
+def box(bumps=True):
     full, solid = text_lines()
-    b = body() + wings(kind)
+    b = body()
     # панель со скосом: край на грани совпадает с рисунком, дно меньше на глубину
     inner = rrect(PANEL_W - 2 * PANEL_D, PANEL_H - 2 * PANEL_D, PANEL_R - PANEL_D).extrude(0.01)
     outer = rrect(PANEL_W + 1.0, PANEL_H + 1.0, PANEL_R + 0.5).extrude(0.01).translate([0, 0, PANEL_D + 0.5])
@@ -530,9 +452,9 @@ def transmitter(open_deg=None, dz=0.0):
     return (body_ + btn + sld).translate(at), grille.translate(at), clip.translate(at)
 
 
-def build(kind='taper'):
+def build():
     tb, tg, tc = transmitter()
-    return dict(box=box(kind), head=head(), handle=handle(), letters=letters(), tx_body=tb, tx_grille=tg, tx_clip=tc)
+    return dict(box=box(), head=head(), handle=handle(), letters=letters(), tx_body=tb, tx_grille=tg, tx_clip=tc)
 
 
 def overhangs(name, m, limit=61.0):
@@ -565,9 +487,9 @@ def joint(name, part, free, mate, free_mate, sense, sign):
 
 
 def bayonet_check(p):
-    top = box(bumps=False).trim_by_plane([0, 0, 1], 60.0)
+    top = box(bumps=False).trim_by_plane([0, 0, 1], BOX_H - 22.0)
     bot = box(bumps=False).trim_by_plane([0, 0, -1], -26.0)
-    hr = p['head'].trim_by_plane([0, 0, -1], -90.0)
+    hr = p['head'].trim_by_plane([0, 0, -1], -(BOX_H + 8.0))
     joint('голова', hr, hr, top + top_bumps(), top, TOP_SENSE, 1)
     hd = p['handle'].trim_by_plane([0, 0, 1], -6.0)
     free = handle(False).trim_by_plane([0, 0, 1], -6.0)

@@ -18,7 +18,7 @@ from pathlib import Path
 from manifold3d import Manifold
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parents[2] / 'aksdom-m31-reporter-mic-case' / 'v1' / 'src'))
+sys.path.insert(0, str(HERE.parents[2] / 'v1' / 'src'))
 import mic_case as M
 
 NAME = 'aksdom-m31-reporter-mic-case-fit-test'
@@ -26,8 +26,8 @@ LUG_HS = (3.6, 3.8, 4.0)        # кольца головы: высота лап
 LUG_GAPS = (0.1, 0.2, 0.3)      # ручка: зазор лапки до конуса плиты
 TOP_HALF = 22.0                 # верх колодца: половина стороны
 WELL_WALL = 3.2                 # стенка вокруг колодца снизу
-Z_LOW = M.PEDESTAL_Z - 11.0     # кусок бокса начинается под двускатным дном колодца
-Z_STEP = 60.0                   # выше этой высоты он широкий, под гнездо головы
+Z_LOW = M.PEDESTAL_Z - 9.0      # кусок бокса начинается под двускатным дном колодца, ниже уже гнездо ручки
+Z_STEP = M.BOX_H - 22.0         # выше этой высоты он широкий, под гнездо головы
 SOCKET_H = M.SPIGOT_L + 4.0     # кусок бокса с гнездом ручки
 SOCKET_W = 38.0
 TILE = (54.0, 32.0, 6.0)        # плитка с выемкой под надпись
