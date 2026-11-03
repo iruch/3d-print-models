@@ -125,6 +125,11 @@ BOT_V_R = 13.35     # дно канавки в отверстии бокса
 BLADE_T = 2.0       # перегородка, которую зажимает прищепка
 JAW_ROOM = 0.5      # добавка к глубине колодца: зубцы раскрываются на пластине
 
+# ---------- стол ----------
+BRIM_W = 10.0       # кайма вокруг головы и ручки: обе высокие, стоят на узком кольце, а сверху шире
+BRIM_T = 0.2        # кайма в один слой, после печати отрезается
+PLATE_GAP = 4.0     # зазор между деталями и каймами на столе: детали стоят тесно, сопло меньше ездит
+
 
 def rrect(w, h, r):
     return CrossSection.square([w - 2 * r, h - 2 * r], True).offset(r, JoinType.Round, 8, 24)
@@ -553,20 +558,48 @@ def write_3mf(path, parts, title):
         z.writestr('3D/3dmodel.model', model_xml)
 
 
+def brim(m):
+    """Кайма в один слой вокруг кольца, которым деталь стоит на столе. Ось детали в начале координат.
+    Край кольца берётся по первому слою на каждом угле, медиана: лапки и пропилы её не сдвигают,
+    и кайма заходит на кольцо на 0,3 мм по всей окружности, а не только на лапки.
+    Возвращает деталь с каймой и наружный радиус каймы."""
+    cs = m.slice(BRIM_T / 2)
+    edge = []
+    for a in range(0, 360, 2):
+        ray = CrossSection.square([60, 0.2]).translate([0, -0.1]).rotate(a)
+        edge.append(max((math.hypot(x, y) for poly in (cs ^ ray).to_polygons() for x, y in poly), default=0.0))
+    r_in, r = sorted(edge)[len(edge) // 2], max(edge)
+    ring = CrossSection.circle(r + BRIM_W, 144) - CrossSection.circle(r_in - 0.3, 144)
+    return m + ring.extrude(BRIM_T), r + BRIM_W
+
+
 def plate():
-    """Три детали на столе в положении печати: бокс вверх дном, голова юбкой вниз, ручка хвостовиком вниз."""
-    def put(m, x, y):
+    """Детали на столе в положении печати: бокс вверх дном, голова юбкой вниз, ручка хвостовиком вниз, слова лицом вниз.
+    Стоят тесно: бокс в углу, голова справа от него, ручка спереди, слова между ними.
+    Голова и ручка с каймой: без неё на пробной печати одну из них сорвало со стола."""
+    def base(m):
         b = m.bounding_box()
-        return m.translate([x - (b[0] + b[3]) / 2, y - (b[1] + b[4]) / 2, -b[2]])
+        return m.translate([-(b[0] + b[3]) / 2, -(b[1] + b[4]) / 2, -b[2]])
     p = build()
-    parts = [('box', put(p['box'].rotate([180, 0, 0]), 110, 160), None),
-             ('head', put(p['head'], 75, 70), None),
-             ('handle', put(p['handle'].rotate([180, 0, 0]), 145, 70), None)]
+    g = PLATE_GAP
+    head_b, r_head = brim(base(p['head']))
+    handle_b, r_handle = brim(base(p['handle'].rotate([180, 0, 0])))
+    parts = [('box', base(p['box'].rotate([180, 0, 0]))),
+             ('head', head_b.translate([BOX_W / 2 + g + r_head, 0, 0])),
+             ('handle', handle_b.translate([0, -(BOX_D / 2 + g + r_handle), 0]))]
     # слова лицом вниз: лицо выходит гладким, а сторона, которая входит в паз, без наплыва первого слоя
     words = sorted(text_lines()[0].decompose(), key=lambda c: c.bounds()[2] - c.bounds()[0])
-    for i, (w, y) in enumerate(zip(words + words, (150, 100, 125, 75))):
-        parts.append((f'word-{i + 1}', put(w.extrude(LETTER_T).rotate([180, 0, 0]), 190, y), None))
-    return parts
+    words = [base(w.extrude(LETTER_T).rotate([180, 0, 0])) for w in words + words]
+    w_max = max(w.bounding_box()[3] - w.bounding_box()[0] for w in words)
+    h_max = max(w.bounding_box()[4] - w.bounding_box()[1] for w in words)
+    for i, w in enumerate(words):
+        x = r_handle + g + w_max / 2               # правее каймы ручки
+        y = -(r_head + g + h_max / 2) - i * (h_max + g)   # ниже каймы головы
+        parts.append((f'word-{i + 1}', w.translate([x, y, 0])))
+    # всё вместе в центр стола 220 × 220
+    b = Manifold.batch_boolean([m for _, m in parts], OpType.Add).bounding_box()
+    dx, dy = 110 - (b[0] + b[3]) / 2, 110 - (b[1] + b[4]) / 2
+    return [(n, m.translate([dx, dy, 0]), None) for n, m in parts]
 
 
 if __name__ == '__main__':
