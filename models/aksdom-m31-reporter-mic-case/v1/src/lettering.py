@@ -14,7 +14,8 @@ from matplotlib.textpath import TextPath
 from matplotlib.font_manager import FontProperties
 
 FONT_FILE = os.environ.get('MIC_FONT') or str(Path(__file__).parent / 'fonts' / 'Satisfy-Regular.ttf')
-BOLD = 0.34          # утолщение на сторону, мм: без него буквы не связаны и слишком тонкие
+BOLD = 0.25          # утолщение на сторону, мм: без него буквы не связаны и слишком тонкие. Больше нельзя:
+                     # у слова шириной 32,4 мм заливает петли букв, и надпись сливается. Меньше 0,22 длинное слово рвётся
 TRACK = -0.012       # разрядка в долях кегля
 WORD_W = 43.5        # ширина нижнего слова, мм
 MAX_SIZE = 11.0      # короткое нижнее слово не раздуваем
