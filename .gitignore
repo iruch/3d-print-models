@@ -27,3 +27,6 @@ desktop.ini
 
 # Локальные настройки Claude Code
 .claude/settings.local.json
+
+# Личные файлы моделей: надписи с настоящими именами заказчиков. Репозиторий публичный
+models/*/private/

@@ -8,10 +8,12 @@
 Фронт бокса и панель взяты с рисунка автора. Крылья с рисунка убраны, бокс и шар уменьшены: размер задаёт передатчик.
 
 uv run mic_case.py      -> проверка: габариты деталей, пересечения в сборке, байонеты, нависания
-uv run mic_case.py --print [--top слово --bottom слово --out файл.3mf]   -> три детали на столе для печати
+uv run mic_case.py --print [--top слово --bottom слово --out файл.3mf]   -> все детали на одном столе, одним цветом
+uv run mic_case.py --plates [--top слово --bottom слово --out папка]   -> раскладки по цветам и таблица наборов в ../plates
 Без uv: pip install numpy manifold3d matplotlib fonttools, дальше python вместо uv run.
 """
 import argparse
+import itertools
 import math
 import zipfile
 from pathlib import Path
@@ -25,6 +27,7 @@ m3.set_circular_segments(72)
 
 # ---------- надпись: две строки, задаётся параметром ----------
 TEXT = ('be', 'louder!')
+EXAMPLE = TEXT      # пример для репозитория: настоящие имена заказчиков в публичный репозиторий не кладём
 
 # ---------- передатчик: сняты с фото рядом с линейкой, штангенциркулем не проверялось ----------
 # Линейка лежит на листе, а передатчик выше неё, поэтому на фото он крупнее настоящего, примерно на 3–8 %.
@@ -573,43 +576,188 @@ def brim(m):
     return m + ring.extrude(BRIM_T), r + BRIM_W
 
 
-def plate():
-    """Детали на столе в положении печати: бокс вверх дном, голова юбкой вниз, ручка хвостовиком вниз, слова лицом вниз.
-    Стоят тесно: бокс в углу, голова справа от него, ручка спереди, слова между ними.
-    Голова и ручка с каймой: без неё на пробной печати одну из них сорвало со стола."""
+def bed_parts():
+    """Детали в положении печати, каждая осью в начале координат, низом на столе: бокс вверх дном, голова юбкой вниз,
+    ручка хвостовиком вниз, слова лицом вниз. Голова и ручка с каймой: без неё на пробной печати одну из них сорвало со стола.
+    Возвращает {деталь: Manifold, 'words': [четыре слова]} и наружные радиусы кайм головы и ручки."""
     def base(m):
         b = m.bounding_box()
         return m.translate([-(b[0] + b[3]) / 2, -(b[1] + b[4]) / 2, -b[2]])
     p = build()
-    g = PLATE_GAP
-    head_b, r_head = brim(base(p['head']))
-    handle_b, r_handle = brim(base(p['handle'].rotate([180, 0, 0])))
-    parts = [('box', base(p['box'].rotate([180, 0, 0]))),
-             ('head', head_b.translate([BOX_W / 2 + g + r_head, 0, 0])),
-             ('handle', handle_b.translate([0, -(BOX_D / 2 + g + r_handle), 0]))]
+    head, r_head = brim(base(p['head']))
+    handle, r_handle = brim(base(p['handle'].rotate([180, 0, 0])))
     # слова лицом вниз: лицо выходит гладким, а сторона, которая входит в паз, без наплыва первого слоя
     words = sorted(text_lines()[0].decompose(), key=lambda c: c.bounds()[2] - c.bounds()[0])
     words = [base(w.extrude(LETTER_T).rotate([180, 0, 0])) for w in words + words]
-    w_max = max(w.bounding_box()[3] - w.bounding_box()[0] for w in words)
-    h_max = max(w.bounding_box()[4] - w.bounding_box()[1] for w in words)
-    for i, w in enumerate(words):
-        x = r_handle + g + w_max / 2               # правее каймы ручки
-        y = -(r_head + g + h_max / 2) - i * (h_max + g)   # ниже каймы головы
-        parts.append((f'word-{i + 1}', w.translate([x, y, 0])))
-    # всё вместе в центр стола 220 × 220
+    return dict(box=base(p['box'].rotate([180, 0, 0])), head=head, handle=handle, words=words), r_head, r_handle
+
+
+def to_bed_center(parts):
+    """Сдвигает всю раскладку в центр стола 220 × 220. parts — [(имя, Manifold)]."""
     b = Manifold.batch_boolean([m for _, m in parts], OpType.Add).bounding_box()
     dx, dy = 110 - (b[0] + b[3]) / 2, 110 - (b[1] + b[4]) / 2
     return [(n, m.translate([dx, dy, 0]), None) for n, m in parts]
 
 
+def word_size(words):
+    w = max(m.bounding_box()[3] - m.bounding_box()[0] for m in words)
+    h = max(m.bounding_box()[4] - m.bounding_box()[1] for m in words)
+    return w, h
+
+
+def plate():
+    """Все детали на одном столе, для печати одним цветом.
+    Стоят тесно: бокс в углу, голова справа от него, ручка спереди, слова между ними."""
+    bp, r_head, r_handle = bed_parts()
+    g = PLATE_GAP
+    parts = [('box', bp['box']),
+             ('head', bp['head'].translate([BOX_W / 2 + g + r_head, 0, 0])),
+             ('handle', bp['handle'].translate([0, -(BOX_D / 2 + g + r_handle), 0]))]
+    w_max, h_max = word_size(bp['words'])
+    for i, w in enumerate(bp['words']):
+        x = r_handle + g + w_max / 2               # правее каймы ручки
+        y = -(r_head + g + h_max / 2) - i * (h_max + g)   # ниже каймы головы
+        parts.append((f'word-{i + 1}', w.translate([x, y, 0])))
+    return to_bed_center(parts)
+
+
+def pack(sizes, g=PLATE_GAP):
+    """Плотная раскладка прямоугольников (ширина, глубина) с зазором g. Перебирает порядок, каждый ставит вплотную
+    справа или сзади от уже поставленных и берёт раскладку с самым маленьким столом.
+    Возвращает левые передние углы и размер стола."""
+    best = None
+    for order in itertools.permutations(range(len(sizes))):
+        pos = {}
+        for i in order:
+            w, h = sizes[i]
+            cands = [(0.0, 0.0)] + [c for j, (x, y) in pos.items() for c in ((x + sizes[j][0] + g, y), (x, y + sizes[j][1] + g))]
+            choice = None
+            for cx, cy in cands:
+                if any(cx < x + sizes[j][0] + g and x < cx + w + g and cy < y + sizes[j][1] + g and y < cy + h + g
+                       for j, (x, y) in pos.items()):
+                    continue
+                W = max([cx + w] + [x + sizes[j][0] for j, (x, y) in pos.items()])
+                H = max([cy + h] + [y + sizes[j][1] for j, (x, y) in pos.items()])
+                key = (max(W, H), W * H)
+                if choice is None or key < choice[0]:
+                    choice = (key, (cx, cy))
+            pos[i] = choice[1]
+        W = max(pos[i][0] + sizes[i][0] for i in pos)
+        H = max(pos[i][1] + sizes[i][1] for i in pos)
+        key = (max(W, H), W * H)
+        if best is None or key < best[0]:
+            best = (key, [pos[i] for i in range(len(sizes))], (W, H))
+    return best[1], best[2]
+
+
+def plate_of(group):
+    """Детали одного цвета на одном столе, например только голова и ручка. group — имена из color_sets.PARTS.
+    Каждая деталь занимает свой прямоугольник, слова идут блоком: столбиком или два на два, что выйдет теснее."""
+    bp, _, _ = bed_parts()
+    g = PLATE_GAP
+    single = []
+    for name in ('box', 'head', 'handle'):
+        if name in group:
+            b = bp[name].bounding_box()
+            single.append(([(name, bp[name])], (b[3] - b[0], b[4] - b[1])))
+    variants = [[]]
+    if 'words' in group:
+        w, h = word_size(bp['words'])
+        variants = []
+        for cols in (1, 2):
+            rows = 4 // cols
+            cell = [(f'word-{i + 1}', m.translate([(i % cols) * (w + g) + w / 2, -(i // cols) * (h + g) - h / 2, 0]))
+                    for i, m in enumerate(bp['words'])]
+            # блок от левого переднего угла
+            cell = [(n, m.translate([0, rows * h + (rows - 1) * g, 0])) for n, m in cell]
+            variants.append([(cell, (cols * w + (cols - 1) * g, rows * h + (rows - 1) * g))])
+    best = None
+    for extra in variants:
+        blocks = single + extra
+        corners, (W, H) = pack([size for _, size in blocks], g)
+        if best is None or (max(W, H), W * H) < best[0]:
+            best = ((max(W, H), W * H), blocks, corners)
+    _, blocks, corners = best
+    parts = []
+    for (items, (w, h)), (x, y) in zip(blocks, corners):
+        for n, m in items:
+            if n.startswith('word'):
+                parts.append((n, m.translate([x, y, 0])))
+            else:
+                parts.append((n, m.translate([x + w / 2, y + h / 2, 0])))
+    return to_bed_center(parts)
+
+
+def write_plates(out):
+    """Раскладки по цветам для принтера с одной нитью: каждое сочетание деталей одного цвета, какое встречается
+    в наборах color_sets, ложится в свой 3mf один раз. Рядом README с таблицей: какой набор какими файлами
+    и какой нитью печатать."""
+    from color_sets import NAMES, PARTS, PART_NAMES, sets, prints
+    name = 'aksdom-m31-reporter-mic-case-v1'
+    count = {}
+    for _, _, cc in sets():
+        for _, group in prints(cc):
+            count[group] = count.get(group, 0) + 1
+    groups = sorted(count, key=lambda gr: (-count[gr], [PARTS.index(x) for x in gr]))
+    files, rows = {}, []
+    for gr in groups:
+        fn = f'{name}-{"-".join(gr)}.3mf'
+        parts = plate_of(gr)
+        write_3mf(out / fn, parts, fn[:-4])
+        b = Manifold.batch_boolean([m for _, m, _ in parts], OpType.Add).bounding_box()
+        what = ', '.join(PART_NAMES[x] for x in gr)
+        files[gr] = (fn, what)
+        rows.append(f'| [`{fn}`]({fn}) | {what} | {b[3] - b[0]:.0f} × {b[4] - b[1]:.0f} × {b[5] - b[2]:.0f} | {count[gr]} |')
+        print(fn, what, f'{b[3] - b[0]:.1f} × {b[4] - b[1]:.1f} × {b[5] - b[2]:.1f}', 'наборов', count[gr], flush=True)
+    table = []
+    for n, _, cc in sets():
+        steps = '<br>'.join(f'{i + 1}. [{files[gr][1]}]({files[gr][0]}) — {NAMES[c]}' for i, (c, gr) in enumerate(prints(cc)))
+        table.append(f'| {n} | ' + ' | '.join(NAMES[c] for c in cc) + f' | {steps} |')
+    text = f"""# Кейс-микрофон: раскладки по цветам
+
+Принтер с одной нитью печатает кейс в несколько заходов: одна печать — один цвет. Детали одного цвета стоят на одном столе, между печатями меняется нить. Порядок печатей в наборе любой.
+
+Каждая раскладка лежит здесь один раз и подходит всем наборам с таким сочетанием деталей. Цвета в файлах нет: его даёт нить, которой печатаете. Номера наборов те же, что на картинках цветов в [README модели](../../README.md#виды). Все детали одним цветом, например для пробной сборки, — в файле [`../{name}.3mf`](../{name}.3mf).
+
+Настройки печати — в [README модели](../../README.md#печать). Кайма у головы и ручки уже в модели, в слайсере её надо выключить, поддержки тоже.
+
+Файлы и таблица сделаны скриптом `v1/src/mic_case.py --plates`, надпись в них — {'пример' if TEXT == EXAMPLE else '«' + ' '.join(TEXT) + '»'}. Своя надпись: `--top слово --bottom слово --out папка`. От надписи зависят и слова, и выемки в боксе, поэтому пересобирается всё.
+
+## Файлы
+
+| Файл | Что на столе | Габариты, мм (Ш × Г × В) | В скольких наборах |
+|---|---|---|---|
+""" + '\n'.join(rows) + """
+
+## Наборы
+
+Цвета названы как в [FILAMENTS.md](../../../../FILAMENTS.md).
+
+| № | Голова | Бокс | Ручка | Надпись | Печати |
+|---|---|---|---|---|---|
+""" + '\n'.join(table) + """
+
+## Лицензия
+
+Как у модели: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.ru), автор — iruch.
+"""
+    (out / 'README.md').write_text(text, encoding='utf8')
+
+
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument('--print', dest='to_print', action='store_true', help='записать детали в 3mf и выйти')
+    ap.add_argument('--plates', action='store_true', help='раскладки по цветам и таблица наборов в папку и выйти')
     ap.add_argument('--top', default=TEXT[0])
     ap.add_argument('--bottom', default=TEXT[1])
     ap.add_argument('--out')
     args = ap.parse_args()
     TEXT = (args.top, args.bottom)
+    if args.plates:
+        out = Path(args.out) if args.out else Path(__file__).resolve().parents[1] / 'plates'
+        out.mkdir(parents=True, exist_ok=True)
+        write_plates(out)
+        raise SystemExit
     if args.to_print:
         name = 'aksdom-m31-reporter-mic-case-v1'
         out = Path(args.out) if args.out else Path(__file__).resolve().parents[1] / f'{name}.3mf'

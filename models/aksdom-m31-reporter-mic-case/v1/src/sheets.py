@@ -18,6 +18,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 import lettering
 import mic_case as D
+from color_sets import COMBOS
 
 HERE = Path(__file__).parent
 INK = '#22262B'
@@ -459,19 +460,6 @@ def sheet_ball(out):
     D.BALL_ROOF = keep
     sh.save(out / 'design-ball.png')
     print('лист шар', flush=True)
-
-
-K, Wh, Yl, Bl, Rd, Tl, Pa = 'black', 'white', 'yellow', 'blue', 'red', 'teal', 'pastel'
-COMBOS = [
-    ('Белый бокс', [(K, Wh, K, Rd), (K, Wh, K, Bl), (Wh, Wh, Yl, Yl), (Tl, Wh, Tl, Tl), (Rd, Wh, Rd, Rd), (Bl, Wh, Bl, Bl)]),
-    ('Чёрный бокс', [(K, K, K, Yl), (Yl, K, Yl, Yl), (Wh, K, Wh, Wh), (Rd, K, Rd, Rd), (Tl, K, Tl, Tl), (Bl, K, Bl, Wh)]),
-    ('Красный бокс', [(K, Rd, K, Wh), (K, Rd, K, Yl), (Wh, Rd, Wh, Wh), (Wh, Rd, K, Wh), (Yl, Rd, K, Yl), (Bl, Rd, Bl, Wh)]),
-    ('Синий бокс', [(Wh, Bl, Wh, Wh), (Wh, Bl, Wh, Yl), (K, Bl, K, Wh), (Yl, Bl, Yl, Yl), (Rd, Bl, Rd, Wh), (Tl, Bl, Tl, Wh)]),
-    ('Жёлтый шёлковый бокс', [(K, Yl, K, K), (Wh, Yl, Wh, K), (Bl, Yl, Bl, Bl), (Rd, Yl, Rd, Rd), (K, Yl, K, Rd), (Tl, Yl, Tl, Tl)]),
-    ('Сине-зелёный шёлковый бокс', [(K, Tl, K, Wh), (Wh, Tl, Wh, Wh), (Yl, Tl, Yl, Yl), (K, Tl, K, Yl), (Wh, Tl, K, Wh), (Bl, Tl, Bl, Wh)]),
-    ('Пастельный бокс', [(Wh, Pa, Wh, K), (Wh, Pa, Wh, Bl), (K, Pa, K, K), (K, Pa, K, Wh), (Rd, Pa, Rd, Rd), (Tl, Pa, Tl, Tl)]),
-    ('Смелые сочетания', [(Pa, Wh, Pa, K), (Pa, K, Pa, Wh), (Pa, Bl, Pa, Wh), (Pa, Rd, Pa, Wh), (Rd, Yl, Bl, K), (Tl, Rd, Yl, Wh)]),
-]
 
 
 def swatches(dr, x, y, cols):
