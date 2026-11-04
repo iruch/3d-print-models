@@ -89,6 +89,10 @@ from manifold3d import Manifold, CrossSection, JoinType
 ОТВ_ВИНТА = 8.8            # отверстие под винт в стойке
 КАРМАН_ЗАЗОР = 0.4         # карман под гайку больше её
 
+# ---------- подложки под мелкие детали (только в файлах для печати) ----------
+ПОДЛОЖКА_Ш = 8.0           # ширина кольца вокруг винта, гайки и оси
+ПОДЛОЖКА_Н = 0.25          # толщина: только первый слой. 04.11 винт без подложки съехал, автокайма слайсера её не дала
+
 ПРОБНИК_Y = -62.0          # пробник клипсы: кронштейн обрезан на этой высоте
 
 SEG = 96
@@ -227,14 +231,37 @@ def screw():
     return (knob + rod) ^ keep
 
 
-def nut():
+def nut_outline():
     r = ГАЙКА_S / np.sqrt(3)
-    pts = [(r * np.cos(np.radians(a + 30)), r * np.sin(np.radians(a + 30))) for a in range(0, 360, 60)]
-    body = Manifold.extrude(poly(pts), ГАЙКА_Н)
+    return poly([(r * np.cos(np.radians(a + 30)), r * np.sin(np.radians(a + 30))) for a in range(0, 360, 60)])
+
+
+def nut():
+    body = Manifold.extrude(nut_outline(), ГАЙКА_Н)
     hole = threaded(ГАЙКА_Н + 2, ЗАЗОР_РЕЗЬБЫ).translate((0, 0, -1))
     cham = Manifold.cylinder(1.0, ВИНТ_D / 2 + ЗАЗОР_РЕЗЬБЫ + 0.6, ВИНТ_D / 2 - 0.4, SEG).translate((0, 0, -0.01))
     cham += cham.mirror((0, 0, 1)).translate((0, 0, ГАЙКА_Н + 0.02))
     return body - hole - cham
+
+
+def with_pad(m, outline):
+    """Деталь для печати с подложкой: кольцо в первый слой вокруг её пятна на столе, отрывается, как кайма.
+    Винт, гайка и ось лёгкие, а винт и ось ещё и высокие: без подложки их сбивает со стола."""
+    # внутренний край чуть заходит под деталь: иначе между многоугольниками кольца и цилиндра остаются щели-волоски
+    ring = outline.offset(ПОДЛОЖКА_Ш, JoinType.Round) - outline.offset(-0.05, JoinType.Round)
+    return m + Manifold.extrude(ring, ПОДЛОЖКА_Н)
+
+
+def screw_print():
+    return with_pad(screw(), CrossSection.circle(БАРАШЕК_D / 2, SEG))
+
+
+def nut_print():
+    return with_pad(nut(), nut_outline())
+
+
+def pin_print():
+    return with_pad(pin(), CrossSection.circle(ОСЬ_ШЛЯПКА_D / 2, SEG))
 
 
 # ---------- сборка на принтере ----------
@@ -300,23 +327,36 @@ def filament():
 
 # ---------- столы для печати ----------
 
+R_ВИНТ = БАРАШЕК_D / 2 + ПОДЛОЖКА_Ш           # радиусы деталей с подложкой на столе
+R_ГАЙКА = ГАЙКА_S / np.sqrt(3) + ПОДЛОЖКА_Ш
+R_ОСЬ = ОСЬ_ШЛЯПКА_D / 2 + ПОДЛОЖКА_Ш
+ПРОМЕЖУТОК = 4.0                               # между деталями на столе
+
+
 def plate_main():
     b = bracket()
     bb = b.bounding_box()
     parts = [("кронштейн", b.translate((8 - bb[0], 8 - bb[1], 0)))]
-    parts.append(("ролик", roller().translate((165, 35, 0))))
-    parts.append(("ось", pin().translate((150, 90, 0))))
-    parts.append(("винт", screw().translate((185, 92, 0))))
-    parts.append(("гайка", nut().translate((160, 135, 0))))
+    # мелкие детали столбиком справа от кронштейна
+    x = 8 + (bb[3] - bb[0]) + ПРОМЕЖУТОК + РОЛИК_R
+    y = 8 + РОЛИК_R
+    parts.append(("ролик", roller().translate((x, y, 0))))
+    y += РОЛИК_R + ПРОМЕЖУТОК + R_ВИНТ
+    parts.append(("винт", screw_print().translate((x, y, 0))))
+    y += R_ВИНТ + ПРОМЕЖУТОК + R_ГАЙКА
+    parts.append(("гайка", nut_print().translate((x, y, 0))))
+    y += R_ГАЙКА + ПРОМЕЖУТОК + R_ОСЬ
+    parts.append(("ось", pin_print().translate((x, y, 0))))
     return parts
 
 
 def plate_clip_test():
     b = bracket(ПРОБНИК_Y)
     bb = b.bounding_box()
+    x = 8 + (bb[3] - bb[0]) + ПРОМЕЖУТОК + R_ВИНТ
     return [("пробник клипсы", b.translate((8 - bb[0], 8 - bb[1], 0))),
-            ("винт", screw().translate((90, 30, 0))),
-            ("гайка", nut().translate((90, 62, 0)))]
+            ("винт", screw_print().translate((x, 8 + R_ВИНТ, 0))),
+            ("гайка", nut_print().translate((x, 8 + 2 * R_ВИНТ + ПРОМЕЖУТОК + R_ГАЙКА, 0)))]
 
 
 def write_3mf(path, parts, title):
