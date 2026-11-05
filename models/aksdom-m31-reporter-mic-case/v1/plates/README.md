@@ -4,7 +4,7 @@
 
 Каждая раскладка лежит здесь один раз и подходит всем наборам с таким сочетанием деталей. Цвета в файлах нет: его даёт нить, которой печатаете. Номера наборов те же, что на картинках цветов в [README модели](../../README.md#виды). Все детали одним цветом, например для пробной сборки, — в файле [`../aksdom-m31-reporter-mic-case-v1.3mf`](../aksdom-m31-reporter-mic-case-v1.3mf).
 
-Настройки печати — в [README модели](../../README.md#печать). Кайма у головы и ручки уже в модели, в слайсере её надо выключить, поддержки тоже.
+Настройки печати — в [README модели](../../README.md#печать). Подложки у всех деталей уже в модели, кайму в слайсере надо выключить, поддержки тоже. После печати подложки отрывают.
 
 Файлы и таблица сделаны скриптом `v1/src/mic_case.py --plates`, надпись в них — пример. Своя надпись: `--top слово --bottom слово --out папка`. От надписи зависят и слова, и выемки в боксе, поэтому пересобирается всё.
 
@@ -12,16 +12,16 @@
 
 | Файл | Что на столе | Габариты, мм (Ш × Г × В) | В скольких наборах |
 |---|---|---|---|
-| [`aksdom-m31-reporter-mic-case-v1-box.3mf`](aksdom-m31-reporter-mic-case-v1-box.3mf) | бокс | 44 × 44 × 50 | 46 |
-| [`aksdom-m31-reporter-mic-case-v1-words.3mf`](aksdom-m31-reporter-mic-case-v1-words.3mf) | надпись | 42 × 23 × 3 | 25 |
-| [`aksdom-m31-reporter-mic-case-v1-head-handle.3mf`](aksdom-m31-reporter-mic-case-v1-head-handle.3mf) | голова, ручка | 104 × 55 × 75 | 22 |
-| [`aksdom-m31-reporter-mic-case-v1-head-handle-words.3mf`](aksdom-m31-reporter-mic-case-v1-head-handle-words.3mf) | голова, ручка, надпись | 81 × 104 × 75 | 19 |
-| [`aksdom-m31-reporter-mic-case-v1-handle.3mf`](aksdom-m31-reporter-mic-case-v1-handle.3mf) | ручка | 44 × 44 × 75 | 5 |
-| [`aksdom-m31-reporter-mic-case-v1-head-words.3mf`](aksdom-m31-reporter-mic-case-v1-head-words.3mf) | голова, надпись | 81 × 55 × 53 | 3 |
-| [`aksdom-m31-reporter-mic-case-v1-head.3mf`](aksdom-m31-reporter-mic-case-v1-head.3mf) | голова | 55 × 55 × 53 | 2 |
-| [`aksdom-m31-reporter-mic-case-v1-head-box.3mf`](aksdom-m31-reporter-mic-case-v1-head-box.3mf) | голова, бокс | 103 × 55 × 53 | 1 |
-| [`aksdom-m31-reporter-mic-case-v1-head-box-handle.3mf`](aksdom-m31-reporter-mic-case-v1-head-box-handle.3mf) | голова, бокс, ручка | 92 × 104 × 75 | 1 |
-| [`aksdom-m31-reporter-mic-case-v1-handle-words.3mf`](aksdom-m31-reporter-mic-case-v1-handle-words.3mf) | ручка, надпись | 70 × 50 × 75 | 1 |
+| [`aksdom-m31-reporter-mic-case-v1-box.3mf`](aksdom-m31-reporter-mic-case-v1-box.3mf) | бокс | 50 × 57 × 50 | 46 |
+| [`aksdom-m31-reporter-mic-case-v1-words.3mf`](aksdom-m31-reporter-mic-case-v1-words.3mf) | надпись | 72 × 53 × 3 | 25 |
+| [`aksdom-m31-reporter-mic-case-v1-head-handle.3mf`](aksdom-m31-reporter-mic-case-v1-head-handle.3mf) | голова, ручка | 91 × 49 × 75 | 22 |
+| [`aksdom-m31-reporter-mic-case-v1-head-handle-words.3mf`](aksdom-m31-reporter-mic-case-v1-head-handle-words.3mf) | голова, ручка, надпись | 91 × 104 × 75 | 19 |
+| [`aksdom-m31-reporter-mic-case-v1-handle.3mf`](aksdom-m31-reporter-mic-case-v1-handle.3mf) | ручка | 40 × 40 × 75 | 5 |
+| [`aksdom-m31-reporter-mic-case-v1-head-words.3mf`](aksdom-m31-reporter-mic-case-v1-head-words.3mf) | голова, надпись | 77 × 104 × 53 | 3 |
+| [`aksdom-m31-reporter-mic-case-v1-head.3mf`](aksdom-m31-reporter-mic-case-v1-head.3mf) | голова | 49 × 49 × 53 | 2 |
+| [`aksdom-m31-reporter-mic-case-v1-head-box.3mf`](aksdom-m31-reporter-mic-case-v1-head-box.3mf) | голова, бокс | 101 × 57 × 53 | 1 |
+| [`aksdom-m31-reporter-mic-case-v1-head-box-handle.3mf`](aksdom-m31-reporter-mic-case-v1-head-box-handle.3mf) | голова, бокс, ручка | 101 × 91 × 75 | 1 |
+| [`aksdom-m31-reporter-mic-case-v1-handle-words.3mf`](aksdom-m31-reporter-mic-case-v1-handle-words.3mf) | ручка, надпись | 77 × 95 × 75 | 1 |
 
 ## Наборы
 

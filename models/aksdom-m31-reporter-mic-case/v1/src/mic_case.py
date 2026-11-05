@@ -101,12 +101,11 @@ NOTCH_R = 17.95     # наружный край выреза
 LUG_R = 17.7        # лапка головы
 LUG_A = 14.0        # половина ширины лапки, градусов
 LUG_H = 3.8         # высота лапки от торца юбки: зазор до плиты 0,2 мм, подбирается по пробной печати
-SEAT_Z = BOX_H - 2.2  # у этой высоты кончаются зуб язычка и канавки щелчка на юбке
-TONGUE_A = 66.0     # корень язычка щелчка, градусов от выреза, свободный конец у следующего выреза
-TONGUE_R = 17.3     # наружный край язычка, дальше прорезь. Тоньше нельзя: верх язычка срежет конус, и он начнётся в воздухе
-SLIT_R = 18.0       # наружный край прорези, спрятан под шейкой головы
-BUMP_A = 97.0       # зуб на язычке, градусов от выреза
-BUMP_H = 0.4        # высота зуба: язычок гнётся на 0,2 мм. Бокс бывает из PLA+, она жёстче и хрупче PETG, поэтому изгиб меньше
+SEAT_Z = BOX_H - 2.2  # до этой высоты идут канавки щелчка на юбке головы
+# Щелчок: жёсткий зуб бокса в пазу под плитой, а пружинит юбка головы из PETG. Раньше зуб сидел на язычке в плите,
+# но верх язычка срезал конус, и у стола он печатался нитками в воздухе вместе с тонкой стенкой прорези.
+BUMP_A = 97.0       # зуб, градусов от выреза: здесь лапки не проходят ни открытыми, ни закрытыми
+BUMP_H = 0.4        # от отверстия под юбку: юбка прогибается на 0,2 мм, канавка на ней глубже, 0,45
 GROOVE_V = 14.85    # дно канавки на юбке, зуб заходит в неё в двух положениях: открыто и закрыто
 # Голова садится скосом под шейкой на такой же конус в боксе и встаёт по оси. Раньше между ними был зазор, голова стояла
 # шейкой на лице бокса, а по бокам лицо срезано скруглением углов: голова опиралась на две дужки и качалась.
@@ -134,9 +133,9 @@ BLADE_T = 2.0       # перегородка, которую зажимает п
 JAW_ROOM = 0.5      # добавка к глубине колодца: зубцы раскрываются на пластине
 
 # ---------- стол ----------
-BRIM_W = 10.0       # кайма вокруг головы и ручки: обе высокие, стоят на узком кольце, а сверху шире
-BRIM_T = 0.2        # кайма в один слой, после печати отрезается
-PLATE_GAP = 4.0     # зазор между деталями и каймами на столе: детали стоят тесно, сопло меньше ездит
+PAD_W = 8.0         # подложка: кольцо вокруг пятна каждой детали на столе, после печати отрывается, как кайма.
+PAD_T = 0.25        # один первый слой. Без неё сопло цепляет деталь за край и срывает со стола
+PLATE_GAP = 2.0     # между подложками соседних деталей: не сливаются, а детали стоят тесно и сопло меньше ездит
 
 
 def rrect(w, h, r):
@@ -256,7 +255,8 @@ def well():
 
 
 def top_socket():
-    """Гнездо головы: отверстие, конус под скос шейки, вырезы, паз под плитой, пандусы, упоры и прорези язычков."""
+    """Гнездо головы: отверстие, конус под скос шейки, вырезы, паз под плитой, пандусы и упоры.
+    У лица только сплошное кольцо с конусом и вырезы: бокс печатается этой стороной на столе."""
     z = BOX_H
     zb = z - TOP_PLATE
     z4 = zb - 4.0               # низ паза под лапками
@@ -272,17 +272,17 @@ def top_socket():
     for a in BAYONET:
         void.append(rotz(notch, a))
         void.append(ramp(lambda h: [[r - 0.1, zb - 0.5], [GROOVE_R, zb - 0.5], [GROOVE_R, zb + h], [r - 0.1, zb + h]], a, s, notch_a - 1, notch_a + RAMP_A, RAMP_H, 0.0))
-        void.append(arc([[TONGUE_R, zb - 0.5], [SLIT_R, zb - 0.5], [SLIT_R, z + 1], [TONGUE_R, z + 1]], a, s, TONGUE_A, 112.0))
         stops.append(arc([[r + 0.2, z4 + 0.4], [GROOVE_R + 0.2, z4 + 0.4], [GROOVE_R + 0.2, zb + 0.2], [r + 0.2, zb + 0.2]], a, s, TURN + LUG_A + 0.4, TURN + LUG_A + 0.4 + STOP_A))
     return union(void) - union(stops)
 
 
 def top_bumps():
-    """Зубы на свободных концах язычков. Гнутся только язычки, поэтому зуб считается отдельно от сборки."""
+    """Зубы щелчка: рёбра в пазу под плитой, от стенки паза до юбки. Пружинит юбка головы, поэтому зуб считается отдельно от сборки.
+    Вверх дном ребро стоит на плите, нависаний нет."""
     r = TOP_BORE / 2
     zb = BOX_H - TOP_PLATE
-    pts = [[r + 0.2, -1.5], [r - BUMP_H, -0.35], [r - BUMP_H, 0.35], [r + 0.2, 1.5]]
-    return union([prism(pts, zb + 0.3, SEAT_Z - 0.3, a + TOP_SENSE * BUMP_A) for a in BAYONET])
+    pts = [[GROOVE_R + 0.2, -1.5], [r + 0.2, -1.5], [r - BUMP_H, -0.35], [r - BUMP_H, 0.35], [r + 0.2, 1.5], [GROOVE_R + 0.2, 1.5]]
+    return union([prism(pts, zb - 3.6, zb + 0.1, a + TOP_SENSE * BUMP_A) for a in BAYONET])
 
 
 def bottom_socket():
@@ -575,35 +575,37 @@ def write_3mf(path, parts, title):
         z.writestr('3D/3dmodel.model', model_xml)
 
 
-def brim(m):
-    """Кайма в один слой вокруг кольца, которым деталь стоит на столе. Ось детали в начале координат.
-    Край кольца берётся по первому слою на каждом угле, медиана: лапки и пропилы её не сдвигают,
-    и кайма заходит на кольцо на 0,3 мм по всей окружности, а не только на лапки.
-    Возвращает деталь с каймой и наружный радиус каймы."""
-    cs = m.slice(BRIM_T / 2)
-    edge = []
-    for a in range(0, 360, 2):
-        ray = CrossSection.square([60, 0.2]).translate([0, -0.1]).rotate(a)
-        edge.append(max((math.hypot(x, y) for poly in (cs ^ ray).to_polygons() for x, y in poly), default=0.0))
-    r_in, r = sorted(edge)[len(edge) // 2], max(edge)
-    ring = CrossSection.circle(r + BRIM_W, 144) - CrossSection.circle(r_in - 0.3, 144)
-    return m + ring.extrude(BRIM_T), r + BRIM_W
+def footprint(m):
+    """Пятно детали на столе без дырок: подложка идёт только снаружи, в отверстия не лезет.
+    Щели уже 1 мм закрыты, иначе подложка залезла бы в пропилы язычков на торце хвостовика и внутрь него."""
+    cs = m.slice(0.1).offset(0.5, JoinType.Round, 6, 16).offset(-0.5, JoinType.Round, 6, 16)
+    outer = [p for p in cs.to_polygons() if 0.5 * np.sum(p[:, 0] * np.roll(p[:, 1], -1) - np.roll(p[:, 0], -1) * p[:, 1]) > 0]
+    return CrossSection(outer, FillRule.NonZero)
 
 
-def bed_parts():
+def with_pad(m):
+    """Деталь для печати с подложкой: кольцо в первый слой вокруг её пятна на столе.
+    Внутренний край на 0,05 мм заходит под деталь, иначе между ними остаются щели-волоски."""
+    fp = footprint(m)
+    ring = fp.offset(PAD_W, JoinType.Round, 6, 16) - fp.offset(-0.05, JoinType.Round, 6, 16)
+    return m + ring.extrude(PAD_T)
+
+
+def bed_parts(pad=True):
     """Детали в положении печати, каждая осью в начале координат, низом на столе: бокс вверх дном, голова юбкой вниз,
-    ручка хвостовиком вниз, слова лицом вниз. Голова и ручка с каймой: без неё на пробной печати одну из них сорвало со стола.
-    Возвращает {деталь: Manifold, 'words': [четыре слова]} и наружные радиусы кайм головы и ручки."""
+    ручка хвостовиком вниз, слова лицом вниз. У каждой подложка; pad=False — без неё, для картинок видов.
+    Возвращает {деталь: Manifold, 'words': [четыре слова]}."""
     def base(m):
         b = m.bounding_box()
         return m.translate([-(b[0] + b[3]) / 2, -(b[1] + b[4]) / 2, -b[2]])
+    def ready(m):
+        return base(with_pad(m)) if pad else m
     p = build()
-    head, r_head = brim(base(p['head']))
-    handle, r_handle = brim(base(p['handle'].rotate([180, 0, 0])))
     # слова лицом вниз: лицо выходит гладким, а сторона, которая входит в паз, без наплыва первого слоя
     words = sorted(text_lines()[0].decompose(), key=lambda c: c.bounds()[2] - c.bounds()[0])
-    words = [base(w.extrude(LETTER_T).rotate([180, 0, 0])) for w in words + words]
-    return dict(box=base(p['box'].rotate([180, 0, 0])), head=head, handle=handle, words=words), r_head, r_handle
+    return dict(box=ready(base(p['box'].rotate([180, 0, 0]))), head=ready(base(p['head'])),
+                handle=ready(base(p['handle'].rotate([180, 0, 0]))),
+                words=[ready(base(w.extrude(LETTER_T).rotate([180, 0, 0]))) for w in words + words])
 
 
 def to_bed_center(parts):
@@ -619,20 +621,9 @@ def word_size(words):
     return w, h
 
 
-def plate():
-    """Все детали на одном столе, для печати одним цветом.
-    Стоят тесно: бокс в углу, голова справа от него, ручка спереди, слова между ними."""
-    bp, r_head, r_handle = bed_parts()
-    g = PLATE_GAP
-    parts = [('box', bp['box']),
-             ('head', bp['head'].translate([BOX_W / 2 + g + r_head, 0, 0])),
-             ('handle', bp['handle'].translate([0, -(BOX_D / 2 + g + r_handle), 0]))]
-    w_max, h_max = word_size(bp['words'])
-    for i, w in enumerate(bp['words']):
-        x = r_handle + g + w_max / 2               # правее каймы ручки
-        y = -(r_head + g + h_max / 2) - i * (h_max + g)   # ниже каймы головы
-        parts.append((f'word-{i + 1}', w.translate([x, y, 0])))
-    return to_bed_center(parts)
+def plate(pad=True):
+    """Все детали на одном столе, для печати одним цветом, разложены так же тесно, как раскладки по цветам."""
+    return plate_of(('head', 'box', 'handle', 'words'), pad)
 
 
 def pack(sizes, g=PLATE_GAP):
@@ -664,10 +655,10 @@ def pack(sizes, g=PLATE_GAP):
     return best[1], best[2]
 
 
-def plate_of(group):
+def plate_of(group, pad=True):
     """Детали одного цвета на одном столе, например только голова и ручка. group — имена из color_sets.PARTS.
-    Каждая деталь занимает свой прямоугольник, слова идут блоком: столбиком или два на два, что выйдет теснее."""
-    bp, _, _ = bed_parts()
+    Каждая деталь с подложкой занимает свой прямоугольник, слова идут блоком: столбиком или два на два, что выйдет теснее."""
+    bp = bed_parts(pad)
     g = PLATE_GAP
     single = []
     for name in ('box', 'head', 'handle'):
@@ -733,7 +724,7 @@ def write_plates(out):
 
 Каждая раскладка лежит здесь один раз и подходит всем наборам с таким сочетанием деталей. Цвета в файлах нет: его даёт нить, которой печатаете. Номера наборов те же, что на картинках цветов в [README модели](../../README.md#виды). Все детали одним цветом, например для пробной сборки, — в файле [`../{name}.3mf`](../{name}.3mf).
 
-Настройки печати — в [README модели](../../README.md#печать). Кайма у головы и ручки уже в модели, в слайсере её надо выключить, поддержки тоже.
+Настройки печати — в [README модели](../../README.md#печать). Подложки у всех деталей уже в модели, кайму в слайсере надо выключить, поддержки тоже. После печати подложки отрывают.
 
 Файлы и таблица сделаны скриптом `v1/src/mic_case.py --plates`, надпись в них — {'пример' if TEXT == EXAMPLE else '«' + ' '.join(TEXT) + '»'}. Своя надпись: `--top слово --bottom слово --out папка`. От надписи зависят и слова, и выемки в боксе, поэтому пересобирается всё.
 
@@ -762,6 +753,7 @@ if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument('--print', dest='to_print', action='store_true', help='записать детали в 3mf и выйти')
     ap.add_argument('--plates', action='store_true', help='раскладки по цветам и таблица наборов в папку и выйти')
+    ap.add_argument('--no-pad', dest='no_pad', action='store_true', help='с --print: без подложек, только для картинок видов')
     ap.add_argument('--top', default=TEXT[0])
     ap.add_argument('--bottom', default=TEXT[1])
     ap.add_argument('--out')
@@ -775,12 +767,14 @@ if __name__ == '__main__':
     if args.to_print:
         name = 'aksdom-m31-reporter-mic-case-v1'
         out = Path(args.out) if args.out else Path(__file__).resolve().parents[1] / f'{name}.3mf'
-        parts = plate()
+        parts = plate(not args.no_pad)
         write_3mf(out, parts, name)
         for n, m, _ in parts:
             b = m.bounding_box()
             area = m.surface_area()
-            print(f'{n}: {b[3] - b[0]:.1f} × {b[4] - b[1]:.1f} × {b[5] - b[2]:.1f}, X {b[0]:.0f}–{b[3]:.0f}, Y {b[1]:.0f}–{b[4]:.0f}, объём {m.volume() / 1000:.1f} см³, поверхность {area / 100:.0f} см², кусков {len(m.decompose())}, {m.status().name}')
+            # подложка видна как лишняя площадь первого слоя против второго
+            extra = m.slice(0.1).area() - m.slice(0.35).area()
+            print(f'{n}: {b[3] - b[0]:.1f} × {b[4] - b[1]:.1f} × {b[5] - b[2]:.1f}, X {b[0]:.0f}–{b[3]:.0f}, Y {b[1]:.0f}–{b[4]:.0f}, объём {m.volume() / 1000:.1f} см³, поверхность {area / 100:.0f} см², кусков {len(m.decompose())}, {m.status().name}, подложка {"есть" if extra > 1 else "НЕТ"} ({extra / 100:.1f} см²)')
         raise SystemExit
     p = build()
     tx = p['tx_body'] + p['tx_grille'] + p['tx_clip']
