@@ -41,6 +41,7 @@ uv run roller_guide.py --filled         -> сцена: кусок бортика
 uv run roller_guide.py --node2          -> k1c-dryer-roller-guide-v1-node-2.3mf: узел 2 для печати
 uv run roller_guide.py --node2 --lower  -> k1c-dryer-roller-guide-v1-node-2-lower.3mf: только нижняя часть узла 2
 uv run roller_guide.py --node2 --pose use -> узел 2 в сборе, для картинок видов
+uv run roller_guide.py --small          -> k1c-dryer-roller-guide-v1-small-parts.3mf: ролики, оси, винты и гайки обоих узлов
 Последним аргументом можно передать имя файла. Без uv: pip install numpy manifold3d, дальше python вместо uv run.
 """
 import sys
@@ -557,6 +558,19 @@ def flip_front_down(m):
     return m.rotate((0, 180, 0)).translate((0, 0, ТОЛЩИНА))
 
 
+# Мелкие детали обоих узлов на одном столе: у автора они жёлтым PLA, кронштейны чёрным PETG. Подобрано перебором.
+РАСКЛАДКА_МЕЛОЧИ = {"ролик 1": (0.0, 0.0), "ролик 2": (56.0, 0.0), "винт 1": (26.2, 40.2), "винт 2": (68.2, 46.2),
+                    "фиксатор": (-7.8, 62.2), "гайка 1": (42.0, 73.0), "гайка 2": (74.0, 83.0),
+                    "ось 1": (14.5, 88.5), "ось 2": (-13.5, 96.5)}
+
+
+def plate_small():
+    """Ролики, оси, винты и гайки обоих узлов: по ролику, оси, винту-съёмнику и гайке на узел и фиксатор узла 2."""
+    parts = [("ролик 1", roller()), ("ролик 2", roller()), ("винт 1", screw()), ("винт 2", screw()),
+             ("фиксатор", screw(ФИКСАТОР_L)), ("гайка 1", nut()), ("гайка 2", nut()), ("ось 1", pin()), ("ось 2", pin())]
+    return lay_out(parts, РАСКЛАДКА_МЕЛОЧИ, {})
+
+
 def plate_node2_lower():
     """Только нижняя часть узла 2: чтобы перепечатать её, не трогая верх, ролик и винты."""
     return lay_out([("низ", node2_lower())], {}, {"низ": seam_keepout(True)})
@@ -650,6 +664,10 @@ if __name__ == "__main__":
             name += "-lower"
         else:
             parts = [(n, m, None) for n, m in plate_node2()]
+    elif "--small" in args:
+        args.remove("--small")
+        parts = [(n, m, None) for n, m in plate_small()]
+        name += "-small-parts"
     elif "--clip-test" in args:
         args.remove("--clip-test")
         parts = [(n, m, None) for n, m in plate_clip_test()]
