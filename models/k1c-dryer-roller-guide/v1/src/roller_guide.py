@@ -42,6 +42,7 @@ uv run roller_guide.py --node2          -> k1c-dryer-roller-guide-v1-node-2.3mf:
 uv run roller_guide.py --node2 --lower  -> k1c-dryer-roller-guide-v1-node-2-lower.3mf: только нижняя часть узла 2
 uv run roller_guide.py --node2 --pose use -> узел 2 в сборе, для картинок видов
 uv run roller_guide.py --small          -> k1c-dryer-roller-guide-v1-small-parts.3mf: ролики, оси, винты и гайки обоих узлов
+uv run roller_guide.py --screw          -> k1c-dryer-roller-guide-v1-screw.3mf: один запасной винт-съёмник
 Последним аргументом можно передать имя файла. Без uv: pip install numpy manifold3d, дальше python вместо uv run.
 """
 import sys
@@ -572,6 +573,11 @@ def plate_small():
     return lay_out(parts, РАСКЛАДКА_МЕЛОЧИ, {})
 
 
+def plate_screw():
+    """Один винт-съёмник: напечатать взамен сломанного."""
+    return lay_out([("винт", screw())], {}, {})
+
+
 def plate_node2_lower():
     """Только нижняя часть узла 2: чтобы перепечатать её, не трогая верх, ролик и винты."""
     return lay_out([("низ", node2_lower())], {}, {"низ": seam_keepout(True)})
@@ -669,6 +675,10 @@ if __name__ == "__main__":
         args.remove("--small")
         parts = [(n, m, None) for n, m in plate_small()]
         name += "-small-parts"
+    elif "--screw" in args:
+        args.remove("--screw")
+        parts = [(n, m, None) for n, m in plate_screw()]
+        name += "-screw"
     elif "--clip-test" in args:
         args.remove("--clip-test")
         parts = [(n, m, None) for n, m in plate_clip_test()]

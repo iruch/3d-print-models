@@ -139,6 +139,7 @@ uv run roller_guide.py --filled scene-filled.3mf                             # �
 uv run roller_guide.py --node2 ../k1c-dryer-roller-guide-v1-node-2.3mf      # узел 2 на одном столе
 uv run roller_guide.py --node2 --lower ../k1c-dryer-roller-guide-v1-node-2-lower.3mf  # только нижняя часть узла 2
 uv run roller_guide.py --small ../k1c-dryer-roller-guide-v1-small-parts.3mf       # мелкие детали обоих узлов
+uv run roller_guide.py --screw ../k1c-dryer-roller-guide-v1-screw.3mf             # один запасной винт-съёмник
 uv run roller_guide.py --node2 --pose use use2.3mf                          # узел 2 в сборе, для видов
 node ../../../../tools/render-3mf.mjs use.3mf ../img --name "Узел 1: клипса и ролик"
 node ../../../../tools/render-3mf.mjs scene-filled.3mf ../img --filled --name "Узел 1 на бортике K1C"
@@ -154,6 +155,7 @@ node ../../../../tools/render-3mf.mjs use2.3mf ../img/node-2 --name "Узел 2:
 | `v1/k1c-dryer-roller-guide-v1-node-2.3mf` | узел 2 для печати: верхняя и нижняя части, ролик, ось, винт-фиксатор, винт-съёмник и гайка на одном столе |
 | `v1/k1c-dryer-roller-guide-v1-node-2-lower.3mf` | только нижняя часть узла 2, если остальное уже есть |
 | `v1/k1c-dryer-roller-guide-v1-small-parts.3mf` | мелкие детали обоих узлов на одном столе (от 125 × 146 мм): 2 ролика, 2 оси, 2 винта-съёмника, винт-фиксатор узла 2, 2 гайки. Чтобы напечатать их другим цветом |
+| `v1/k1c-dryer-roller-guide-v1-screw.3mf` | один винт-съёмник без гайки (резьба 16 мм, с барашком 24), стол от 48 × 48 мм. Взамен сломанного или потерянного |
 | `v1/src/roller_guide.py` | генератор |
 | `v1/src/drawing.py` | чертёж с размерами `v1/img/dims.png` |
 | `v1/img/` | картинки |
