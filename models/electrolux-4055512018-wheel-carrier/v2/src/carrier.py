@@ -12,6 +12,7 @@ Y — поперёк (0 = середина), Z — по толщине (0 = за
 
 uv run carrier.py                 -> деталь для печати: electrolux-4055512018-wheel-carrier.3mf,
                                      каретка и два ролика, у каждой детали подложка
+uv run carrier.py --test          -> пробник: верх каретки с крючком и верхней парой усиков, с подложкой
 uv run carrier.py --filled        -> сцена для картинки: деталь, колёса, проволока, не для печати
 uv run carrier.py --pose back     -> положение: print — стоя на скруглённом торце (по умолчанию),
                                      wheels — колёсами вверх, back — спинкой вверх
@@ -51,6 +52,14 @@ LIP_W = 27.0                   # язычок с крючком на торце:
 LIP_T = 1.4                    # толщина
 LIP_DROP = 6.5                 # насколько крючок загибается к колёсам
 HOOK_R = 1.6                   # внутренний радиус крючка
+# Язычок толщиной 1.4 мм, как на литом оригинале, из ASA ломается поперёк слоёв: деталь печатается стоя,
+# и за концом стенок верхней пары от него остаётся пластинка 27 × 1.4 мм. Поэтому язычок усилен:
+LIP_BACK = 1.2                 # наращён со стороны корзины, от конца пластины до крючка. Между двумя
+                               # проволоками, которые идут в усики, других проволок нет: они упёрлись бы в пластину
+LIP_FILL_X = 84.8              # со стороны колёс заполнен на толщину пластины до конца стенок верхней пары:
+                               # там проволока крючка и так не проходит, мешают стенки
+LIP_FILLET = 1.0               # скругление в углу у конца заполнения, без острого надреза
+TEST_X = 70.0                  # пробник: верх каретки от этого места до крючка, за чашей верхней оси
 
 # Усики: четыре пары стенок. Зацепы стоят на обеих стенках пары и смотрят навстречу друг другу.
 # Литые усики в FDM не работают: стенка 1.2 мм и зазор 1.2 мм ломаются ещё при установке.
@@ -212,6 +221,28 @@ def axle(x):
             + cyl(x, 0, AXLE_TOP - 0.7, AXLE_TOP, BARB_D, AXLE_D - 0.4))
 
 
+def lip_back_pts():
+    """Наращивание язычка со стороны корзины, контур (x, z). Начинается скосом 45° за ячейками спинки,
+    у крючка обходит его снаружи дугой, внутреннее гнездо под проволоку не трогает."""
+    r, c = HOOK_R, (HOOK_X, LIP_T + HOOK_R)
+    r_out = r + LIP_T + LIP_BACK
+    a_end = np.arcsin((L_TOTAL - HOOK_X) / r_out)
+    outer = [(c[0] + r_out * np.sin(a), c[1] - r_out * np.cos(a)) for a in np.linspace(0, a_end, 12)]
+    r_mid = r + 0.7     # внутри тела крючка: между гнездом (r) и прежней наружной дугой (r + LIP_T)
+    inner = [(c[0] + r_mid * np.sin(a), c[1] - r_mid * np.cos(a)) for a in np.linspace(np.radians(85), 0, 10)]
+    x0 = 79.6           # здесь кончаются ячейки спинки, дальше пластина сплошная
+    return ([(x0, 0.5), (x0, 0.0), (x0 + LIP_BACK, -LIP_BACK), (HOOK_X, -LIP_BACK)] + outer[1:]
+            + [(L_TOTAL, c[1] - 0.1)] + inner + [(x0, c[1] - r_mid)])
+
+
+def lip_fill():
+    """Заполнение под язычком со стороны колёс, от конца пластины до конца стенок верхней пары."""
+    R, x1 = LIP_FILLET, LIP_FILL_X
+    fillet = [(x1 + R - R * np.cos(a), LIP_T + R - R * np.sin(a)) for a in np.linspace(0, np.pi / 2, 10)]
+    pts = [(L_PLATE - 0.5, LIP_T - 0.3), (L_PLATE - 0.5, T_RIM), (x1, T_RIM)] + fillet + [(x1 + R, LIP_T - 0.3)]
+    return extrude_xz(pts, -INNER_Y - 0.05, INNER_Y + 0.05)
+
+
 def build():
     plate = (rrect(0, -W / 2, L_PLATE + 2 * CORNER_R, W, CORNER_R, 0, T_RIM)
              - box(L_PLATE, -W, -1, L_PLATE + 3 * CORNER_R, W, T_RIM + 1))
@@ -230,6 +261,7 @@ def build():
                                                (L_TOTAL - LIP_T - 0.8, LIP_DROP - 0.8), (L_TOTAL - LIP_T, LIP_DROP - 1.4)]
                + arc_in + [(L_PLATE - 4.0, LIP_T)])
     lip = extrude_xz(lip_pts, -LIP_W / 2, LIP_W / 2)
+    lip = lip + extrude_xz(lip_back_pts(), -LIP_W / 2, LIP_W / 2)
 
     model = plate + plateau + lip - back_cells()
 
@@ -260,6 +292,8 @@ def build():
     fy = (OUTER_Y, W / 2), (INNER_Y, RIB_Y[1])
     model = model + both(wall(*fy[0], fx0, fx1, fh0, fh1) + wall(*fy[1], fx0, fx1, fh0, fh1)
                          + barb(RIB_Y[1], 1, fx0, fx1, -fh1, flap_y) + barb(OUTER_Y, -1, fx0, fx1, -fh1, flap_y))
+
+    model = model + lip_fill()
 
     # низкая поперечная стенка
     model = model + both(box(STUB_X[0], RIB_Y[1], -STUB_H, STUB_X[1], outer, 1.0))
@@ -341,6 +375,12 @@ def basket():
     return [("basket-wires", wires, WIRE_COLOR), ("rail", rail, RAIL_COLOR)]
 
 
+def test_piece(model):
+    """Пробник: верх каретки от TEST_X, стоя на срезе. Проверяет крючок и верхнюю пару усиков на корзине."""
+    top = model ^ box(TEST_X, -W, -20, L_TOTAL + 5, W, 40)
+    return top.translate([-TEST_X, 0, 0]).rotate([0, -90, 0])
+
+
 def pose(model, name):
     """Положение детали в файле."""
     if name == "back":        # спинкой вверх
@@ -404,7 +444,8 @@ def write_3mf(path, parts, title):
 if __name__ == "__main__":
     args = sys.argv[1:]
     filled = "--filled" in args
-    args = [a for a in args if a != "--filled"]
+    test = "--test" in args
+    args = [a for a in args if a not in ("--filled", "--test")]
     pose_name = "print"
     if "--pose" in args:
         i = args.index("--pose")
@@ -413,12 +454,16 @@ if __name__ == "__main__":
     name = "electrolux-4055512018-wheel-carrier"
     if filled:
         name += "-filled"
+    if test:
+        name += "-test"
     fname = args[0] if args else f"{name}.3mf"
     model = build()
-    parts = [(name, pose(model, pose_name), BODY_COLOR)]
+    parts = [(name, test_piece(model) if test else pose(model, pose_name), BODY_COLOR)]
     if filled:
         parts += [(f"wheel-{i + 1}", pose(wheel(x), pose_name), WHEEL_COLOR) for i, x in enumerate(AXLE_X)]
         parts += [(n, pose(m, pose_name), c) for n, m, c in basket()]
+    elif test:
+        parts = [(n, m, None) for n, m in with_pads([(name, parts[0][1], PAD_W)])]
     elif pose_name == "print":
         on_bed = [(name, parts[0][1], PAD_W_BODY)]
         on_bed += [(f"wheel-{i + 1}", wheel_on_bed(y), PAD_W) for i, y in enumerate((WHEEL_PRINT_Y, -WHEEL_PRINT_Y))]
@@ -426,7 +471,7 @@ if __name__ == "__main__":
     write_3mf(fname, parts, name)
     print(f"{fname}: объём {model.volume()/1000:.1f} см³, кусков {len(model.decompose())}, "
           f"genus {model.genus()}, статус {model.status()}")
-    if pose_name == "print" and not filled:
+    if (pose_name == "print" or test) and not filled:
         for n, m, _ in parts:
             # подложка видна как лишняя площадь в первом слое по сравнению со вторым
             extra = m.slice(0.1).area() - m.slice(PAD_H + 0.1).area()
