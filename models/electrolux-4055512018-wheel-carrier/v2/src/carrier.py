@@ -3,16 +3,20 @@
 # dependencies = ["numpy", "manifold3d"]
 # ///
 """Каретка с двумя колёсами для верхней корзины посудомоечной машины Electrolux, деталь 4055512018.
-В файле для печати пластина с осями и два ролика рядом с ней.
+Две детали: каретка (пластина с осями и усиками) и крючок, который вставляется в паз на её торце.
+Каретка печатается стоя, и слои у неё идут поперёк. Литой язычок крючка так из ASA ломался по слою, поэтому
+крючок отдельный: он печатается на боку, и слои у него идут вдоль язычка. В файле для печати каретка,
+крючок и два ролика.
 Все размеры в мм. X — вдоль детали (0 = скруглённый конец, дальше к крючку),
 Y — поперёк (0 = середина), Z — по толщине (0 = задняя плоскость, плюс — к колёсам).
 
 Как стоит в машине: вертикально, крючком вверх. Крючок надет на горизонтальную проволоку корзины,
 пары стенок (усики) держат проволоку, направляющая проходит между колёсами.
 
-uv run carrier.py                 -> деталь для печати: electrolux-4055512018-wheel-carrier.3mf,
-                                     каретка и два ролика, у каждой детали подложка
-uv run carrier.py --test          -> пробник: верх каретки с крючком и верхней парой усиков, с подложкой
+uv run carrier.py                 -> для печати: electrolux-4055512018-wheel-carrier.3mf,
+                                     каретка, крючок и два ролика, у каждой детали подложка
+uv run carrier.py --test          -> пробник: верх каретки с пазом и верхней парой усиков и два крючка,
+                                     плотный (одна лунка на торце) и посвободнее (две лунки)
 uv run carrier.py --filled        -> сцена для картинки: деталь, колёса, проволока, не для печати
 uv run carrier.py --pose back     -> положение: print — стоя на скруглённом торце (по умолчанию),
                                      wheels — колёсами вверх, back — спинкой вверх
@@ -48,18 +52,26 @@ CONE_D0, CONE_D1 = 15.0, 10.0  # конус в основании оси
 FIN_T, FIN_R = 1.4, 8.5        # четыре ребра вокруг конуса: толщина и вылет
 DISH_D, DISH_RING_D, DISH_DEPTH = 15.6, 18.6, 6.5   # чаша за осью с обратной стороны
 
-LIP_W = 27.0                   # язычок с крючком на торце: ширина
-LIP_T = 1.4                    # толщина
+LIP_T = 1.4                    # толщина язычка над гнездом, как на оригинале: на неё ложится проволока
 LIP_DROP = 6.5                 # насколько крючок загибается к колёсам
 HOOK_R = 1.6                   # внутренний радиус крючка
-# Язычок толщиной 1.4 мм, как на литом оригинале, из ASA ломается поперёк слоёв: деталь печатается стоя,
-# и за концом стенок верхней пары от него остаётся пластинка 27 × 1.4 мм. Поэтому язычок усилен:
-LIP_BACK = 1.2                 # наращён со стороны корзины, от конца пластины до крючка. Между двумя
+
+# Крючок — отдельная деталь. Язычок переходит в хвостовик, хвостовик плотно входит в паз на торце каретки.
+HOOK_W = 22.0                  # ширина крючка (литой язычок 27 мм): по бокам паза нужны стенки
+HOOK_BACK = 2.0                # язычок и хвостовик наращены со стороны корзины: 3.4 мм вместо 1.4. Между двумя
                                # проволоками, которые идут в усики, других проволок нет: они упёрлись бы в пластину
-LIP_FILL_X = 84.8              # со стороны колёс заполнен на толщину пластины до конца стенок верхней пары:
-                               # там проволока крючка и так не проходит, мешают стенки
-LIP_FILLET = 1.0               # скругление в углу у конца заполнения, без острого надреза
-TEST_X = 70.0                  # пробник: верх каретки от этого места до крючка, за чашей верхней оси
+TOP_X = 84.8                   # торец каретки: здесь кончаются стенки верхней пары, отсюда выходит крючок
+SOCKET_X0 = 70.0               # гнездо в каретке: сплошной блок от этого места до торца, за чашей верхней оси
+SLOT_X0 = 72.0                 # дно паза: хвостовик входит на 12.5 мм
+SOCKET_FRONT_Y = 15.4          # блок со стороны колёс: до наружной грани внутренней стенки верхней пары
+SOCKET_BACK_Y = 13.0           # со стороны корзины: не доходит 0.4 мм до внутренней стенки, ей нужно гнуться
+SOCKET_BACK = 3.6              # за задней плоскостью блок выступает на столько, как стенки верхней пары:
+                               # стенка паза сзади 1.6 мм
+FIT_Z, FIT_Y = 0.05, 0.15      # зазор хвостовика в пазу на сторону: по толщине и по ширине. По ширине больше:
+                               # нижний на столе край хвостовика расплющен первым слоем
+LOOSE = 0.1                    # второй крючок пробника тоньше и уже на столько на сторону: если первый не лезет
+TONGUE_CH = 0.6                # фаска на конце хвостовика и на входе в паз
+TEST_X = 69.5                  # пробник: верх каретки от этого места до торца, за чашей верхней оси
 
 # Усики: четыре пары стенок. Зацепы стоят на обеих стенках пары и смотрят навстречу друг другу.
 # Литые усики в FDM не работают: стенка 1.2 мм и зазор 1.2 мм ломаются ещё при установке.
@@ -77,6 +89,7 @@ INNER_Y = 13.4                 # внутренняя стенка пары: о�
 OUTER_Y = 19.2                 # наружная стенка пары: от OUTER_Y до края, 1.8 мм
 WIRE_NOM = 3.0                 # диаметр проволоки у пары возле крючка: оценка, штангенциркулем не мерили
 FLAP_SNAP = 0.2                # насколько зазор между её зацепами меньше проволоки: она рядом с крючком и почти не гнётся
+FLAP_BARBS = True              # зацепы у пары возле крючка
 BARB_GAP = 2.0                 # от задней плоскости до упора её зацепа
 NOTCH_W, NOTCH_D = 2.2, 1.9    # полукруглые прорези по бокам наружной стенки: ширина и глубина
 SLOPE_Z = NOTCH_D - NOTCH_W / 2   # отсюда нижний по печати угол стенки идёт под 45°, чтобы не нужна была поддержка
@@ -221,26 +234,53 @@ def axle(x):
             + cyl(x, 0, AXLE_TOP - 0.7, AXLE_TOP, BARB_D, AXLE_D - 0.4))
 
 
-def lip_back_pts():
-    """Наращивание язычка со стороны корзины, контур (x, z). Начинается скосом 45° за ячейками спинки,
-    у крючка обходит его снаружи дугой, внутреннее гнездо под проволоку не трогает."""
+def hook_pts():
+    """Контур крючка (x, z): хвостовик и язычок одной полосой, у конца загиб к колёсам вокруг проволоки.
+    Снаружи загиб обходит наращивание дугой, гнездо под проволоку как на оригинале."""
     r, c = HOOK_R, (HOOK_X, LIP_T + HOOK_R)
-    r_out = r + LIP_T + LIP_BACK
+    r_out = r + LIP_T + HOOK_BACK
     a_end = np.arcsin((L_TOTAL - HOOK_X) / r_out)
-    outer = [(c[0] + r_out * np.sin(a), c[1] - r_out * np.cos(a)) for a in np.linspace(0, a_end, 12)]
-    r_mid = r + 0.7     # внутри тела крючка: между гнездом (r) и прежней наружной дугой (r + LIP_T)
-    inner = [(c[0] + r_mid * np.sin(a), c[1] - r_mid * np.cos(a)) for a in np.linspace(np.radians(85), 0, 10)]
-    x0 = 79.6           # здесь кончаются ячейки спинки, дальше пластина сплошная
-    return ([(x0, 0.5), (x0, 0.0), (x0 + LIP_BACK, -LIP_BACK), (HOOK_X, -LIP_BACK)] + outer[1:]
-            + [(L_TOTAL, c[1] - 0.1)] + inner + [(x0, c[1] - r_mid)])
+    outer = [(c[0] + r_out * np.sin(a), c[1] - r_out * np.cos(a)) for a in np.linspace(0, a_end, 14)]
+    arc_in = [(c[0] + r * np.sin(a), c[1] - r * np.cos(a)) for a in np.linspace(np.pi / 2, 0, 12)]
+    x0, ch = SLOT_X0 + 0.3, TONGUE_CH
+    return ([(x0 + ch, -HOOK_BACK)] + outer + [(L_TOTAL, LIP_DROP), (L_TOTAL - LIP_T - 0.8, LIP_DROP),
+                                              (L_TOTAL - LIP_T - 0.8, LIP_DROP - 0.8), (L_TOTAL - LIP_T, LIP_DROP - 1.4)]
+            + arc_in + [(x0 + ch, LIP_T), (x0, LIP_T - ch), (x0, -HOOK_BACK + ch)])
 
 
-def lip_fill():
-    """Заполнение под язычком со стороны колёс, от конца пластины до конца стенок верхней пары."""
-    R, x1 = LIP_FILLET, LIP_FILL_X
-    fillet = [(x1 + R - R * np.cos(a), LIP_T + R - R * np.sin(a)) for a in np.linspace(0, np.pi / 2, 10)]
-    pts = [(L_PLATE - 0.5, LIP_T - 0.3), (L_PLATE - 0.5, T_RIM), (x1, T_RIM)] + fillet + [(x1 + R, LIP_T - 0.3)]
-    return extrude_xz(pts, -INNER_Y - 0.05, INNER_Y + 0.05)
+def hook_part(loose=0.0, marks=1):
+    """Крючок в положении на каретке. loose — насколько хвостовик тоньше и уже на сторону, marks — лунки на торце."""
+    hw = HOOK_W / 2
+    m = extrude_xz(hook_pts(), -hw, hw)
+    t = TOP_X
+    if loose:
+        m = m - box(0, -hw - 1, -HOOK_BACK - 1, t, hw + 1, -HOOK_BACK + loose) - box(0, -hw - 1, LIP_T - loose, t, hw + 1, LIP_T + 1)
+        m = m - box(0, hw - loose, -5, t, hw + 1, 5) - box(0, -hw - 1, -5, t, -hw + loose, 5)
+    # фаска 0.4 мм по рёбрам хвостовика, которые при печати лежат на столе: расплющенный первый слой
+    # и остаток подложки уходят в неё и не мешают войти в паз
+    y0 = -hw + loose
+    for z, sg in ((LIP_T - loose, 1), (-HOOK_BACK + loose, -1)):
+        m = m - extrude_yz([(y0 - 0.01, z + sg * 0.01), (y0 + 0.4, z + sg * 0.01), (y0 - 0.01, z - sg * 0.4)], 0, t)
+    for k in range(marks):
+        y = (k - (marks - 1) / 2) * 4.0
+        m = m - Manifold.cylinder(1.6, 0.8, 0.8, 24).rotate([0, 90, 0]).translate([L_TOTAL - 0.6, y, 3.6])
+    return m
+
+
+def socket():
+    """Гнездо под хвостовик: сплошной блок у торца каретки, сзади выступает за заднюю плоскость, начинается скосом 45°."""
+    front = box(SOCKET_X0, -SOCKET_FRONT_Y, 0.0, TOP_X, SOCKET_FRONT_Y, T_RIM)
+    back = extrude_xz([(SOCKET_X0, 0.0), (SOCKET_X0 + SOCKET_BACK, -SOCKET_BACK), (TOP_X, -SOCKET_BACK), (TOP_X, 0.0)],
+                      -SOCKET_BACK_Y, SOCKET_BACK_Y)
+    return front + back
+
+
+def slot():
+    """Паз под хвостовик: открыт с торца, на входе фаска."""
+    hw = HOOK_W / 2 + FIT_Y
+    z0, z1, ch = -HOOK_BACK - FIT_Z, LIP_T + FIT_Z, TONGUE_CH
+    m = box(SLOT_X0, -hw, z0, TOP_X + 1, hw, z1)
+    return m + extrude_xz([(TOP_X - ch, z0), (TOP_X + 0.01, z0 - ch), (TOP_X + 0.01, z1 + ch), (TOP_X - ch, z1)], -hw, hw)
 
 
 def build():
@@ -253,17 +293,7 @@ def build():
     for x in AXLE_X:
         plateau = plateau - cyl(x, 0, T_RIM, z_top + 1, AXLE_CLEAR_D)
 
-    # язычок вдоль задней плоскости, загнутый в крючок к колёсам
-    r = HOOK_R
-    arc = [(HOOK_X + (r + LIP_T) * np.sin(a), LIP_T + r - (r + LIP_T) * np.cos(a)) for a in np.linspace(0, np.pi / 2, 12)]
-    arc_in = [(HOOK_X + r * np.sin(a), LIP_T + r - r * np.cos(a)) for a in np.linspace(np.pi / 2, 0, 12)]
-    lip_pts = ([(L_PLATE - 4.0, 0.0)] + arc + [(L_TOTAL, LIP_DROP), (L_TOTAL - LIP_T - 0.8, LIP_DROP),
-                                               (L_TOTAL - LIP_T - 0.8, LIP_DROP - 0.8), (L_TOTAL - LIP_T, LIP_DROP - 1.4)]
-               + arc_in + [(L_PLATE - 4.0, LIP_T)])
-    lip = extrude_xz(lip_pts, -LIP_W / 2, LIP_W / 2)
-    lip = lip + extrude_xz(lip_back_pts(), -LIP_W / 2, LIP_W / 2)
-
-    model = plate + plateau + lip - back_cells()
+    model = plate + plateau - back_cells()
 
     # пара у скруглённого конца: паз между стенками до дна ячеек, в нём сквозное окно,
     # у наружной стенки полукруглые прорези по бокам, на обеих стенках треугольные зубья навстречу друг другу
@@ -285,15 +315,16 @@ def build():
                          + barbs)
     model = model - both(box(wx0, WINDOW_Y[0], FLOOR_Z, wx1, WINDOW_Y[1], z_top + 1))
 
-    # пара у крючка: стенки выросли из пластины, а не висят на тонкой полоске,
-    # внутренняя стенка срослась с язычком, между стенками сквозной просвет
+    # пара у крючка: стенки выросли из пластины, а не висят на тонкой полоске, между стенками сквозной просвет
     fx0, fx1 = FLAP_X
     fh0, fh1 = FLAP_H
     fy = (OUTER_Y, W / 2), (INNER_Y, RIB_Y[1])
-    model = model + both(wall(*fy[0], fx0, fx1, fh0, fh1) + wall(*fy[1], fx0, fx1, fh0, fh1)
-                         + barb(RIB_Y[1], 1, fx0, fx1, -fh1, flap_y) + barb(OUTER_Y, -1, fx0, fx1, -fh1, flap_y))
+    flaps = wall(*fy[0], fx0, fx1, fh0, fh1) + wall(*fy[1], fx0, fx1, fh0, fh1)
+    if FLAP_BARBS:
+        flaps = flaps + barb(RIB_Y[1], 1, fx0, fx1, -fh1, flap_y) + barb(OUTER_Y, -1, fx0, fx1, -fh1, flap_y)
+    model = model + both(flaps)
 
-    model = model + lip_fill()
+    model = model + socket()
 
     # низкая поперечная стенка
     model = model + both(box(STUB_X[0], RIB_Y[1], -STUB_H, STUB_X[1], outer, 1.0))
@@ -312,7 +343,8 @@ def build():
         model = model - cyl(x, 0, -0.01, DISH_DEPTH, DISH_D, AXLE_HOLE_D)
         model = model - cyl(x, 0, -1, AXLE_TOP + 1, AXLE_HOLE_D)
         model = model - box(x - BARB_D, -SLIT_W / 2, AXLE_TOP - SLIT_L, x + BARB_D, SLIT_W / 2, AXLE_TOP + 1)
-    return model
+    # паз под хвостовик крючка вырезается последним: в него не должно попасть ничего из добавленного выше
+    return model - slot()
 
 
 def wheel_body():
@@ -376,9 +408,19 @@ def basket():
 
 
 def test_piece(model):
-    """Пробник: верх каретки от TEST_X, стоя на срезе. Проверяет крючок и верхнюю пару усиков на корзине."""
+    """Пробник: верх каретки от TEST_X, стоя на срезе. Проверяет паз, посадку крючка и верхнюю пару усиков."""
     top = model ^ box(TEST_X, -W, -20, L_TOTAL + 5, W, 40)
     return top.translate([-TEST_X, 0, 0]).rotate([0, -90, 0])
+
+
+def hook_on_bed(hook, dx, dy):
+    """Крючок на столе: на боку, слои идут вдоль язычка и хвостовика. Загиб крючка лежит в плоскости стола,
+    поэтому поддержка не нужна."""
+    return hook.rotate([90, 0, 0]).translate([dx, dy, HOOK_W / 2])
+
+
+HOOK_PRINT = (0.0, 0.0)            # крючок на столе рядом с роликами
+TEST_HOOKS = ((-48.0, 0.0), (-48.0, 27.0))   # крючки пробника рядом с верхом каретки
 
 
 def pose(model, name):
@@ -458,21 +500,27 @@ if __name__ == "__main__":
         name += "-test"
     fname = args[0] if args else f"{name}.3mf"
     model = build()
-    parts = [(name, test_piece(model) if test else pose(model, pose_name), BODY_COLOR)]
-    if filled:
-        parts += [(f"wheel-{i + 1}", pose(wheel(x), pose_name), WHEEL_COLOR) for i, x in enumerate(AXLE_X)]
-        parts += [(n, pose(m, pose_name), c) for n, m, c in basket()]
-    elif test:
-        parts = [(n, m, None) for n, m in with_pads([(name, parts[0][1], PAD_W)])]
-    elif pose_name == "print":
-        on_bed = [(name, parts[0][1], PAD_W_BODY)]
-        on_bed += [(f"wheel-{i + 1}", wheel_on_bed(y), PAD_W) for i, y in enumerate((WHEEL_PRINT_Y, -WHEEL_PRINT_Y))]
+    hook = hook_part()
+    if test:
+        on_bed = [("верх каретки", test_piece(model), PAD_W)]
+        on_bed += [(f"крючок {k + 1}", hook_on_bed(hook_part(LOOSE * k, k + 1), dx, dy), PAD_W)
+                   for k, (dx, dy) in enumerate(TEST_HOOKS)]
         parts = [(n, m, None) for n, m in with_pads(on_bed)]
+    elif pose_name == "print" and not filled:
+        on_bed = [("каретка", pose(model, "print"), PAD_W_BODY), ("крючок", hook_on_bed(hook, *HOOK_PRINT), PAD_W)]
+        on_bed += [(f"ролик {i + 1}", wheel_on_bed(y), PAD_W) for i, y in enumerate((WHEEL_PRINT_Y, -WHEEL_PRINT_Y))]
+        parts = [(n, m, None) for n, m in with_pads(on_bed)]
+    else:
+        parts = [("каретка", pose(model, pose_name), BODY_COLOR), ("крючок", pose(hook, pose_name), BODY_COLOR)]
+        if filled:
+            parts += [(f"wheel-{i + 1}", pose(wheel(x), pose_name), WHEEL_COLOR) for i, x in enumerate(AXLE_X)]
+            parts += [(n, pose(m, pose_name), c) for n, m, c in basket()]
     write_3mf(fname, parts, name)
-    print(f"{fname}: объём {model.volume()/1000:.1f} см³, кусков {len(model.decompose())}, "
-          f"genus {model.genus()}, статус {model.status()}")
-    if (pose_name == "print" or test) and not filled:
-        for n, m, _ in parts:
+    print(fname)
+    for n, m, _ in parts:
+        line = f"  {n}: объём {m.volume() / 1000:.1f} см³, кусков {len(m.decompose())}, статус {m.status()}"
+        if (pose_name == "print" or test) and not filled:
             # подложка видна как лишняя площадь в первом слое по сравнению со вторым
             extra = m.slice(0.1).area() - m.slice(PAD_H + 0.1).area()
-            print(f"  {n}: кусков {len(m.decompose())}, подложка {'есть' if extra > 1 else 'НЕТ'} ({extra / 100:.1f} см²)")
+            line += f", подложка {'есть' if extra > 1 else 'НЕТ'} ({extra / 100:.1f} см²)"
+        print(line)
